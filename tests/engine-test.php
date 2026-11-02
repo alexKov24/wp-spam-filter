@@ -138,4 +138,18 @@ $h = new Fake_Handler(); $h->errors = array('email' => 'Invalid');
 list($died) = $run(array('email' => array('id' => 'email', 'type' => 'email', 'title' => 'Email', 'value' => 'x@mailinator.com', 'raw_value' => 'x@mailinator.com')), $h);
 check('elementor invalid submission left to Elementor', !$died);
 
+// Visitor response modes.
+$spam_fields = array('email' => array('id' => 'email', 'type' => 'email', 'title' => 'Email', 'value' => 'y@mailinator.com', 'raw_value' => 'y@mailinator.com'));
+update_option('spam_killer_settings', SpamKiller\sanitize_settings(array('response' => 'review', 'review_message' => 'נבדק, נחזור אליך', 'modules' => array('disposable_email' => 1))));
+list($died, $out) = $run($spam_fields);
+$json = json_decode($out, true);
+check('elementor review mode shows review message', $died && $json['success'] === true && $json['data']['message'] === 'נבדק, נחזור אליך');
+update_option('spam_killer_settings', SpamKiller\sanitize_settings(array('response' => 'blocked', 'modules' => array('disposable_email' => 1))));
+list($died, $out) = $run($spam_fields);
+$json = json_decode($out, true);
+check('elementor blocked mode returns error', $died && $json['success'] === false && $json['data']['message'] === 'Your submission could not be sent.');
+check('unknown response falls back to success', SpamKiller\sanitize_settings(array('response' => 'x'))['response'] === 'success');
+check('empty review message falls back to default', SpamKiller\sanitize_settings(array('review_message' => ' '))['review_message'] === SpamKiller\defaults()['review_message']);
+update_option('spam_killer_settings', array());
+
 echo $GLOBALS['sk_failures'] ? "\n{$GLOBALS['sk_failures']} FAILED\n" : "\nAll passed\n";

@@ -4,7 +4,8 @@
  *
  * Elementor's new_record hook runs after form actions (email, webhooks), so we
  * intercept in the validation hook. A quarantined submission ends the request
- * with Elementor's normal success response; no form actions run.
+ * with a success (normal or review message) or error response, per Settings;
+ * no form actions run.
  */
 
 namespace SpamKiller;
@@ -38,12 +39,23 @@ function elementor_screen($record, $handler) {
     if (!screen(elementor_submission($record))) {
         return;
     }
-    $message = (string) $record->get_form_settings('success_message');
-    if ($message === '' && is_callable(array($handler, 'get_default_message'))) {
-        $message = (string) call_user_func(array($handler, 'get_default_message'), 'success', $record->get('form_settings'));
+    $settings = settings();
+    if ($settings['response'] === 'review') {
+        wp_send_json_success(array('message' => $settings['review_message'], 'data' => array()));
     }
-    wp_send_json_success(array(
-        'message' => $message !== '' ? $message : __('Your submission was successful.', 'spam-killer'),
-        'data' => array(),
-    ));
+    if ($settings['response'] === 'blocked') {
+        $message = elementor_message($record, $handler, 'error', __('Your submission could not be sent.', 'spam-killer'));
+        wp_send_json_error(array('message' => $message, 'errors' => array(), 'data' => array()));
+    }
+    $message = elementor_message($record, $handler, 'success', __('Your submission was successful.', 'spam-killer'));
+    wp_send_json_success(array('message' => $message, 'data' => array()));
+}
+
+/** The form's custom message, else Elementor's default, else ours. */
+function elementor_message($record, $handler, $type, $fallback) {
+    $message = (string) $record->get_form_settings($type . '_message');
+    if ($message === '' && is_callable(array($handler, 'get_default_message'))) {
+        $message = (string) call_user_func(array($handler, 'get_default_message'), $type, $record->get('form_settings'));
+    }
+    return $message !== '' ? $message : $fallback;
 }

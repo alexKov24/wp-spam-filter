@@ -3,8 +3,9 @@
  * Contact Form 7 adapter.
  *
  * Runs on wpcf7_before_send_mail (after CF7's own validation and spam checks).
- * A quarantined submission aborts mail but reports "mail_sent", so the visitor
- * sees the normal success message and wpcf7_mail_sent integrations don't fire.
+ * A quarantined submission aborts mail, so wpcf7_mail_sent integrations don't fire.
+ * The visitor sees the normal success message, the review message (both as
+ * "mail_sent"), or CF7's spam message (as "spam"), depending on Settings.
  */
 
 namespace SpamKiller;
@@ -40,6 +41,13 @@ function cf7_screen($contact_form, &$abort, $cf7_submission) {
         return;
     }
     $abort = true;
+    $settings = settings();
+    if ($settings['response'] === 'blocked') {
+        // CF7's own (editable) spam message.
+        $cf7_submission->set_status('spam');
+        $cf7_submission->set_response($contact_form->message('spam'));
+        return;
+    }
     $cf7_submission->set_status('mail_sent');
-    $cf7_submission->set_response($contact_form->message('mail_sent_ok'));
+    $cf7_submission->set_response($settings['response'] === 'review' ? $settings['review_message'] : $contact_form->message('mail_sent_ok'));
 }

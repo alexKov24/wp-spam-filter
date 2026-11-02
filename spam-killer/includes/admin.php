@@ -353,6 +353,12 @@ function settings_page() {
         echo '</td></tr>';
     }
     echo '</tbody></table><h2>Quarantine</h2><table class="form-table"><tbody>';
+    echo '<tr><th>Visitor sees</th><td><fieldset>';
+    foreach (responses() as $key => $label) {
+        printf('<label><input type="radio" name="spam_killer_settings[response]" value="%s"%s> %s</label><br>', esc_attr($key), checked($s['response'], $key, false), esc_html($label));
+    }
+    printf('<p><label for="sk-review">Review message</label><br><input id="sk-review" name="spam_killer_settings[review_message]" value="%s" class="large-text"></p>', esc_attr($s['review_message']));
+    echo '<p class="description">Normal success hides the filter from bots. Blocked tells real people their message didn\'t go through, so they can call instead.</p></fieldset></td></tr>';
     printf('<tr><th><label for="sk-expire">Delete after</label></th><td><input id="sk-expire" type="number" min="1" max="365" name="spam_killer_settings[expire_days]" value="%d" class="small-text"> days</td></tr>', $s['expire_days']);
     echo '</tbody></table>';
     submit_button();

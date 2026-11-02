@@ -8,7 +8,11 @@ WordPress plugin that quarantines suspicious Contact Form 7 and Elementor Pro fo
 
 ## How it works
 
-Every submission is normalized (fields, form, IP, page) and run through the enabled modules. Any match → the submission is saved to quarantine, no email is sent, and the visitor sees the form's normal success message.
+Every submission is normalized (fields, form, IP, page) and run through the enabled modules. Any match → the submission is saved to quarantine and no email is sent. What the visitor sees is set in Settings → Visitor sees:
+
+- **Normal success** (default) — bots can't tell they were caught.
+- **Held for review** — editable message, shown as success.
+- **Blocked** — the form plugin's own error message (CF7 "spam" message; Elementor form error message).
 
 | Module | Free |
 |---|---|
@@ -23,8 +27,8 @@ Add-ons register modules through the `spam_killer_modules` filter. Modules marke
 
 ## Integration points
 
-- **CF7**: `wpcf7_before_send_mail` (priority 1). Sets `$abort` and reports `mail_sent`, so `wpcf7_mail_sent` integrations don't fire. Other plugins hooked on `wpcf7_before_send_mail` still run.
-- **Elementor Pro**: `elementor_pro/forms/validation` (priority 100). Ends the AJAX request with Elementor's success JSON so no form actions run. Skipped when Elementor already has validation errors.
+- **CF7**: `wpcf7_before_send_mail` (priority 1). Sets `$abort` and reports `mail_sent` (or `spam` when blocked), so `wpcf7_mail_sent` integrations don't fire. Other plugins hooked on `wpcf7_before_send_mail` still run.
+- **Elementor Pro**: `elementor_pro/forms/validation` (priority 100). Ends the AJAX request with Elementor-style success/error JSON so no form actions run. Skipped when Elementor already has validation errors.
 
 ## Known limits
 

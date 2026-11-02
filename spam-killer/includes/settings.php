@@ -10,6 +10,17 @@ function defaults() {
         'rate_limit_max' => 5,
         'rate_limit_minutes' => 10,
         'expire_days' => 30,
+        'response' => 'success',
+        'review_message' => __('Thanks! Your message was received and will be reviewed shortly.', 'spam-killer'),
+    );
+}
+
+/** What the visitor sees when a submission is quarantined. */
+function responses() {
+    return array(
+        'success' => 'Normal success message — the visitor can\'t tell it was held',
+        'review' => 'Held for review — shows the message below',
+        'blocked' => 'Blocked — shows the form\'s error message',
     );
 }
 
@@ -29,5 +40,8 @@ function sanitize_settings($input) {
     $out['rate_limit_max'] = max(1, min(1000, absint($input['rate_limit_max'] ?? 5)));
     $out['rate_limit_minutes'] = max(1, min(1440, absint($input['rate_limit_minutes'] ?? 10)));
     $out['expire_days'] = max(1, min(365, absint($input['expire_days'] ?? 30)));
+    $out['response'] = isset(responses()[$input['response'] ?? '']) ? $input['response'] : 'success';
+    $review = sanitize_text_field($input['review_message'] ?? '');
+    $out['review_message'] = $review !== '' ? mb_substr($review, 0, 500) : defaults()['review_message'];
     return $out;
 }
