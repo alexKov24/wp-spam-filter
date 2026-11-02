@@ -136,6 +136,36 @@ function rule_matches(array $rule, array $submission) {
     return $rule['mode'] === 'all' ? !in_array(false, $results, true) : in_array(true, $results, true);
 }
 
+/**
+ * Installed once on activation; editable/deletable like any rule.
+ * Phrases, not single short words: "contains" is a substring match ("sex" would hit "Essex").
+ */
+function default_rules() {
+    $any = function ($name, array $phrases) {
+        return array(
+            'name' => $name,
+            'mode' => 'any',
+            'enabled' => 1,
+            'conditions' => array_map(function ($p) { return array('field' => 'any', 'operator' => 'contains', 'value' => $p); }, $phrases),
+        );
+    };
+    return array(
+        $any('Banned words: SEO & marketing pitches', array(
+            'backlinks', 'seo services', 'guest post', 'domain authority', 'first page of google',
+            'increase your website traffic', 'website traffic', 'link building', 'rank your website',
+            'boost your ranking', 'monthly seo', 'explainer video', 'lead generation services',
+        )),
+        $any('Banned words: pharma & adult', array(
+            'viagra', 'cialis', 'levitra', 'tramadol', 'xanax', 'online pharmacy',
+            'porn', 'escort service', 'adult dating', 'hot singles', 'onlyfans',
+        )),
+        $any('Banned words: crypto & gambling', array(
+            'bitcoin', 'crypto investment', 'withdraw your', 'casino', 'jackpot',
+            'forex', 'binary options', 'betting tips', 'claim your prize',
+        )),
+    );
+}
+
 function hydrate_rule($row) {
     $data = json_decode($row['definition'], true);
     if (!is_array($data)) {

@@ -25,6 +25,7 @@ function admin_menu() {
     $badge = $count ? ' <span class="awaiting-mod">' . number_format_i18n($count) . '</span>' : '';
     add_menu_page('Spam Killer', 'Spam Killer' . $badge, CAP, 'spam-killer', __NAMESPACE__ . '\\quarantine_page', 'dashicons-shield', 80);
     add_submenu_page('spam-killer', 'Quarantine', 'Quarantine', CAP, 'spam-killer', __NAMESPACE__ . '\\quarantine_page');
+    add_submenu_page('spam-killer', 'Log', 'Log', CAP, 'spam-killer-log', __NAMESPACE__ . '\\log_page');
     add_submenu_page('spam-killer', 'Rules', 'Rules', CAP, 'spam-killer-rules', __NAMESPACE__ . '\\rules_page');
     add_submenu_page('spam-killer', 'Settings', 'Settings', CAP, 'spam-killer-settings', __NAMESPACE__ . '\\settings_page');
 }
@@ -93,7 +94,7 @@ function quarantine_page() {
     }
     echo '<hr class="wp-header-end">';
     notice();
-    printf('<p class="description">Held submissions did not send email or trigger form actions. They are deleted automatically after %d days.</p>', (int) settings()['expire_days']);
+    printf('<p class="description">Held submissions did not send email or trigger form actions. Submissions are kept for %d days. <a href="%s">See all submissions</a>.</p>', (int) settings()['expire_days'], esc_url(page_url('spam-killer-log')));
     $views = array(
         'quarantined' => sprintf('Quarantined <span class="count">(%d)</span>', count_items('quarantined')),
         'released' => sprintf('Released <span class="count">(%d)</span>', count_items('released')),
@@ -106,25 +107,61 @@ function quarantine_page() {
     echo implode(' | ', $links) . '</ul>';
     printf('<form method="post" action="%s">', esc_url(admin_url('admin-post.php')));
     wp_nonce_field('spam_killer_quarantine', 'sk_nonce');
-    echo '<input type="hidden" name="action" value="spam_killer_quarantine">';
+    echo '<input type="hidden" name="action" value="spam_killer_quarantine"><input type="hidden" name="back" value="spam-killer">';
     $table->display();
     echo '</form></div>';
 }
 
-function item_page($id) {
+/* ---------- Log ---------- */
+
+function log_page() {
+    if (!current_user_can(CAP)) {
+        return;
+    }
+    if (!empty($_GET['item'])) {
+        item_page(absint($_GET['item']), 'spam-killer-log');
+        return;
+    }
+    require_once __DIR__ . '/list-table.php';
+    $status = isset($_GET['status']) && in_array($_GET['status'], array('passed', 'quarantined', 'released'), true) ? $_GET['status'] : '';
+    $table = new Quarantine_Table($status, 'spam-killer-log');
+    $table->prepare_items();
+    echo '<div class="wrap"><h1 class="wp-heading-inline">Log</h1><hr class="wp-header-end">';
+    notice();
+    printf('<p class="description">Every form submission, passed or held. Kept for %d days (<a href="%s">change</a>).</p>', (int) settings()['expire_days'], esc_url(page_url('spam-killer-settings')));
+    $views = array('' => 'All', 'passed' => 'Passed', 'quarantined' => 'Held', 'released' => 'Released');
+    $links = array();
+    foreach ($views as $key => $label) {
+        $links[] = sprintf('<li><a href="%s"%s>%s <span class="count">(%d)</span></a></li>', esc_url(page_url('spam-killer-log', array_filter(array('status' => $key)))), $key === $status ? ' class="current"' : '', $label, count_items($key));
+    }
+    echo '<ul class="subsubsub">' . implode(' | ', $links) . '</ul>';
+    printf('<form method="post" action="%s">', esc_url(admin_url('admin-post.php')));
+    wp_nonce_field('spam_killer_quarantine', 'sk_nonce');
+    echo '<input type="hidden" name="action" value="spam_killer_quarantine"><input type="hidden" name="back" value="spam-killer-log">';
+    $table->display();
+    echo '</form></div>';
+}
+
+function item_page($id, $back = 'spam-killer') {
     $item = get_item($id);
-    echo '<div class="wrap"><h1>Quarantined submission</h1>';
+    $titles = array('quarantined' => 'Held submission', 'released' => 'Released submission', 'passed' => 'Passed submission');
+    echo '<div class="wrap"><h1>' . esc_html($titles[$item['status'] ?? ''] ?? 'Submission') . '</h1>';
     notice();
     if (!$item) {
         echo '<p>Submission not found. It may have been deleted or expired.</p></div>';
         return;
     }
-    printf('<p><a href="%s">&larr; Back to quarantine</a></p>', esc_url(page_url()));
-    echo '<div class="sk-card"><h2>Why it was held</h2><ul class="sk-reasons">';
-    foreach ($item['reasons'] as $r) {
-        printf('<li><strong>%s:</strong> %s</li>', esc_html(module_label($r['module'] ?? '')), esc_html($r['reason'] ?? ''));
+    printf('<p><a href="%s">&larr; Back to %s</a></p>', esc_url(page_url($back)), $back === 'spam-killer-log' ? 'log' : 'quarantine');
+    if ($item['reasons']) {
+        echo '<div class="sk-card"><h2>Why it was held</h2><ul class="sk-reasons">';
+        foreach ($item['reasons'] as $r) {
+            printf('<li><strong>%s:</strong> %s</li>', esc_html(module_label($r['module'] ?? '')), esc_html($r['reason'] ?? ''));
+        }
+        echo '</ul></div>';
+    } else {
+        echo '<div class="sk-card"><p>No filter matched. This submission was delivered normally.</p></div>';
     }
-    echo '</ul></div><div class="sk-card"><h2>Submitted values</h2><table class="widefat striped"><tbody>';
+    echo '<div class="sk-card"><h2>Submitted values</h2><table class="widefat striped"><tbody>';
     foreach ($item['fields'] as $f) {
         printf('<tr><th>%s</th><td>%s</td></tr>', esc_html($f['label'] !== '' ? $f['label'] : $f['id']), nl2br(esc_html(field_text($f['value']))));
     }
@@ -139,10 +176,10 @@ function item_page($id) {
     echo '</p></div>';
     printf('<form method="post" action="%s" class="sk-actions">', esc_url(admin_url('admin-post.php')));
     wp_nonce_field('spam_killer_quarantine', 'sk_nonce');
-    printf('<input type="hidden" name="action" value="spam_killer_quarantine"><input type="hidden" name="ids[]" value="%d">', $id);
+    printf('<input type="hidden" name="action" value="spam_killer_quarantine"><input type="hidden" name="ids[]" value="%d"><input type="hidden" name="back" value="%s">', $id, esc_attr($back));
     if ($item['status'] === 'quarantined') {
         printf('<button class="button button-primary" name="op" value="release">Not spam — email it to %s</button> ', esc_html(get_option('admin_email')));
-    } else {
+    } elseif ($item['status'] === 'released') {
         printf('<span class="sk-released">Released %s</span> ', esc_html(get_date_from_gmt($item['released_at'], 'Y-m-d H:i')));
     }
     echo '<button class="button" name="op" value="delete">Delete</button></form></div>';
@@ -173,7 +210,8 @@ function handle_quarantine_action() {
         delete_all();
         $notice = 'deleted';
     }
-    wp_safe_redirect(page_url('spam-killer', array_filter(array('sk_notice' => $notice))));
+    $back = ($_POST['back'] ?? '') === 'spam-killer-log' ? 'spam-killer-log' : 'spam-killer';
+    wp_safe_redirect(page_url($back, array_filter(array('sk_notice' => $notice))));
     exit;
 }
 
@@ -347,19 +385,25 @@ function settings_page() {
         if ($id === 'rate_limit') {
             printf('<p class="sk-inline-fields">Allow <input type="number" min="1" max="1000" name="spam_killer_settings[rate_limit_max]" value="%d" class="small-text" aria-label="Maximum submissions"> submissions per form every <input type="number" min="1" max="1440" name="spam_killer_settings[rate_limit_minutes]" value="%d" class="small-text" aria-label="Minutes"> minutes from one IP.</p>', $s['rate_limit_max'], $s['rate_limit_minutes']);
         }
+        if ($id === 'disposable_email') {
+            printf('<details class="sk-domains"%s><summary>Edit the list (%s domains built in)</summary>', ($s['disposable_block'] || $s['disposable_allow']) ? ' open' : '', number_format_i18n(count(disposable_domains())));
+            printf('<p><label for="sk-block">Also block these domains</label><textarea id="sk-block" name="spam_killer_settings[disposable_block]" rows="5" class="large-text code" placeholder="one domain per line">%s</textarea></p>', esc_textarea(implode("\n", $s['disposable_block'])));
+            printf('<p><label for="sk-allow">Never block these domains</label><textarea id="sk-allow" name="spam_killer_settings[disposable_allow]" rows="5" class="large-text code" placeholder="one domain per line">%s</textarea></p>', esc_textarea(implode("\n", $s['disposable_allow'])));
+            echo '<p class="description">Subdomains are included: blocking example.com also blocks mail.example.com. "Never block" wins over the built-in list.</p></details>';
+        }
         if ($id === 'rules') {
             printf('<p><a href="%s">Manage rules</a></p>', esc_url(page_url('spam-killer-rules')));
         }
         echo '</td></tr>';
     }
-    echo '</tbody></table><h2>Quarantine</h2><table class="form-table"><tbody>';
+    echo '</tbody></table><h2>Submissions</h2><table class="form-table"><tbody>';
     echo '<tr><th>Visitor sees</th><td><fieldset>';
     foreach (responses() as $key => $label) {
         printf('<label><input type="radio" name="spam_killer_settings[response]" value="%s"%s> %s</label><br>', esc_attr($key), checked($s['response'], $key, false), esc_html($label));
     }
     printf('<p><label for="sk-review">Review message</label><br><input id="sk-review" name="spam_killer_settings[review_message]" value="%s" class="large-text"></p>', esc_attr($s['review_message']));
     echo '<p class="description">Normal success hides the filter from bots. Blocked tells real people their message didn\'t go through, so they can call instead.</p></fieldset></td></tr>';
-    printf('<tr><th><label for="sk-expire">Delete after</label></th><td><input id="sk-expire" type="number" min="1" max="365" name="spam_killer_settings[expire_days]" value="%d" class="small-text"> days</td></tr>', $s['expire_days']);
+    printf('<tr><th><label for="sk-expire">Keep submissions for</label></th><td><input id="sk-expire" type="number" min="1" max="365" name="spam_killer_settings[expire_days]" value="%d" class="small-text"> days<p class="description">Log and quarantine entries older than this are deleted automatically once a day.</p></td></tr>', $s['expire_days']);
     echo '</tbody></table>';
     submit_button();
     echo '</form></div>';

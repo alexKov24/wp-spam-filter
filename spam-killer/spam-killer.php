@@ -14,7 +14,7 @@ namespace SpamKiller;
 defined('ABSPATH') || exit;
 
 const VERSION = '0.1.0';
-const SCHEMA = '1';
+const SCHEMA = '2';
 const FILE = __FILE__;
 
 require_once __DIR__ . '/includes/settings.php';
@@ -25,6 +25,7 @@ require_once __DIR__ . '/includes/quarantine.php';
 require_once __DIR__ . '/includes/pipeline.php';
 require_once __DIR__ . '/includes/cf7.php';
 require_once __DIR__ . '/includes/elementor.php';
+require_once __DIR__ . '/includes/honeypot.php';
 require_once __DIR__ . '/includes/admin.php';
 
 register_activation_hook(__FILE__, __NAMESPACE__ . '\\install');
@@ -48,7 +49,7 @@ function install() {
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     $charset = $wpdb->get_charset_collate();
 
-    dbDelta('CREATE TABLE ' . table('quarantine') . " (
+    dbDelta('CREATE TABLE ' . table('submissions') . " (
         id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
         source varchar(20) NOT NULL,
         form_id varchar(80) NOT NULL,
@@ -77,6 +78,12 @@ function install() {
 
     if (!wp_next_scheduled('spam_killer_expire')) {
         wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'spam_killer_expire');
+    }
+    if (!get_option('spam_killer_seeded')) {
+        foreach (default_rules() as $rule) {
+            save_rule($rule);
+        }
+        update_option('spam_killer_seeded', 1, false);
     }
     update_option('spam_killer_schema', SCHEMA, false);
 }

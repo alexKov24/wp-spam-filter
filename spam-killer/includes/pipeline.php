@@ -35,15 +35,15 @@ function inspect(array $submission) {
 }
 
 /**
- * Inspects a submission and quarantines it on a match.
+ * Inspects and logs a submission; a match is quarantined.
  * Returns the quarantine id, or 0 if the submission is clean.
  */
 function screen(array $submission) {
     $reasons = inspect($submission);
+    $id = log_submission($submission, $reasons);
     if (!$reasons) {
         return 0;
     }
-    $id = quarantine($submission, $reasons);
     do_action('spam_killer_quarantined', $id, $submission, $reasons);
     return $id;
 }

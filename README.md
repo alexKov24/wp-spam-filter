@@ -8,7 +8,7 @@ WordPress plugin that quarantines suspicious Contact Form 7 and Elementor Pro fo
 
 ## How it works
 
-Every submission is normalized (fields, form, IP, page) and run through the enabled modules. Any match → the submission is saved to quarantine and no email is sent. What the visitor sees is set in Settings → Visitor sees:
+Every submission is normalized (fields, form, IP, page), run through the enabled modules and logged (Spam Killer → Log). Any match → the submission is held in quarantine and no email is sent. What the visitor sees is set in Settings → Visitor sees:
 
 - **Normal success** (default) — bots can't tell they were caught.
 - **Held for review** — editable message, shown as success.
@@ -16,14 +16,15 @@ Every submission is normalized (fields, form, IP, page) and run through the enab
 
 | Module | Free |
 |---|---|
+| Honeypot (hidden `sk_hp` field injected into CF7 and Elementor forms; missing field, e.g. cached page, is not spam) | ✓ |
 | Rate limit (N submissions per form per IP per window, default 5 / 10 min) | ✓ |
-| Disposable email ([disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains), CC0, bundled) | ✓ |
-| Keyword & domain rules (field → condition → value, ALL/ANY, per-form scope) | ✓ |
+| Disposable email ([disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains), CC0, bundled; plus editable "also block" / "never block" lists) | ✓ |
+| Keyword & domain rules (field → condition → value, ALL/ANY, per-form scope; 3 default banned-word rules installed once) | ✓ |
 | AI filtering | paid add-on (planned) |
 
 Add-ons register modules through the `spam_killer_modules` filter. Modules marked `remote` (AI) run only when local modules found nothing. A module error never counts as spam.
 
-**Quarantine inbox** (Spam Killer → Quarantine): view values and reasons, "Not spam" (marks legitimate and emails the submission to the site admin with Reply-To set), delete, bulk actions, auto-delete after N days (default 30).
+**Quarantine inbox** (Spam Killer → Quarantine): view values and reasons, "Not spam" (marks legitimate and emails the submission to the site admin with Reply-To set), delete, bulk actions. Log and quarantine entries are deleted after N days (Settings → Keep submissions for, default 30).
 
 ## Integration points
 

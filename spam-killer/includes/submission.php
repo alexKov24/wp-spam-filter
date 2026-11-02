@@ -14,6 +14,7 @@ namespace SpamKiller;
 defined('ABSPATH') || exit;
 
 const ROLES = array('name', 'email', 'phone', 'message');
+const HONEYPOT = 'sk_hp';
 
 function client_ip() {
     // REMOTE_ADDR only: forwarded headers are spoofable unless a trusted proxy sets them.
@@ -29,6 +30,8 @@ function make_submission($source, $form_id, $form_title, array $fields, $page_ur
         'fields' => array_values($fields),
         'ip' => client_ip(),
         'page_url' => (string) $page_url,
+        // null = the form didn't include our honeypot (e.g. a cached page or a direct POST).
+        'honeypot' => isset($_POST[HONEYPOT]) && is_string($_POST[HONEYPOT]) ? wp_unslash($_POST[HONEYPOT]) : null,
     );
 }
 

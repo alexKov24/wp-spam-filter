@@ -17,6 +17,12 @@ defined('ABSPATH') || exit;
 
 function all_modules() {
     $modules = array(
+        'honeypot' => array(
+            'label' => 'Honeypot',
+            'description' => 'Adds a hidden field to every form. People never see it; bots fill it in.',
+            'remote' => false,
+            'check' => __NAMESPACE__ . '\\check_honeypot',
+        ),
         'rate_limit' => array(
             'label' => 'Rate limit',
             'description' => 'Quarantine when one visitor (IP) sends too many submissions to the same form.',
@@ -37,6 +43,13 @@ function all_modules() {
         ),
     );
     return apply_filters('spam_killer_modules', $modules);
+}
+
+function check_honeypot(array $submission) {
+    if ($submission['honeypot'] === null || trim($submission['honeypot']) === '') {
+        return array();
+    }
+    return array(array('reason' => 'The hidden honeypot field was filled in.', 'fields' => array()));
 }
 
 function check_rate_limit(array $submission, array $settings) {
@@ -75,10 +88,16 @@ function is_disposable_email($email) {
         return false;
     }
     $parts = explode('.', strtolower(trim(substr($email, $at + 1), " .\t\n")));
-    $list = disposable_domains();
-    // Check the domain and each parent: a.b.mailinator.com → b.mailinator.com → mailinator.com.
+    $settings = settings();
+    $allow = array_fill_keys($settings['disposable_allow'], true);
+    $block = array_fill_keys($settings['disposable_block'], true) + disposable_domains();
+    // Most specific first: a.b.mailinator.com → b.mailinator.com → mailinator.com. Allow wins at the same level.
     for ($i = 0; $i < count($parts) - 1; $i++) {
-        if (isset($list[implode('.', array_slice($parts, $i))])) {
+        $domain = implode('.', array_slice($parts, $i));
+        if (isset($allow[$domain])) {
+            return false;
+        }
+        if (isset($block[$domain])) {
             return true;
         }
     }

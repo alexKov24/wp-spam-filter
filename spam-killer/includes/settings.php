@@ -6,10 +6,12 @@ defined('ABSPATH') || exit;
 
 function defaults() {
     return array(
-        'modules' => array('rate_limit' => true, 'disposable_email' => true, 'rules' => true),
+        'modules' => array('honeypot' => true, 'rate_limit' => true, 'disposable_email' => true, 'rules' => true),
         'rate_limit_max' => 5,
         'rate_limit_minutes' => 10,
         'expire_days' => 30,
+        'disposable_block' => array(),
+        'disposable_allow' => array(),
         'response' => 'success',
         'review_message' => __('Thanks! Your message was received and will be reviewed shortly.', 'spam-killer'),
     );
@@ -31,6 +33,18 @@ function settings() {
     return $settings;
 }
 
+/** Textarea (one domain per line, or commas) → clean unique list. */
+function domain_list($text) {
+    $domains = array();
+    foreach (preg_split('/[\s,]+/', strtolower((string) $text)) as $domain) {
+        $domain = preg_replace('/^(?:.*@|www\.)/', '', trim($domain, " .\t"));
+        if (preg_match('/^(?:[a-z0-9-]+\.)+[a-z0-9-]{2,}$/D', $domain)) {
+            $domains[$domain] = true;
+        }
+    }
+    return array_slice(array_keys($domains), 0, 5000);
+}
+
 function sanitize_settings($input) {
     $input = is_array($input) ? $input : array();
     $out = defaults();
@@ -40,6 +54,8 @@ function sanitize_settings($input) {
     $out['rate_limit_max'] = max(1, min(1000, absint($input['rate_limit_max'] ?? 5)));
     $out['rate_limit_minutes'] = max(1, min(1440, absint($input['rate_limit_minutes'] ?? 10)));
     $out['expire_days'] = max(1, min(365, absint($input['expire_days'] ?? 30)));
+    $out['disposable_block'] = domain_list($input['disposable_block'] ?? '');
+    $out['disposable_allow'] = domain_list($input['disposable_allow'] ?? '');
     $out['response'] = isset(responses()[$input['response'] ?? '']) ? $input['response'] : 'success';
     $review = sanitize_text_field($input['review_message'] ?? '');
     $out['review_message'] = $review !== '' ? mb_substr($review, 0, 500) : defaults()['review_message'];

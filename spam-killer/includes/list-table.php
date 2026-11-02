@@ -10,14 +10,21 @@ if (!class_exists('WP_List_Table')) {
 
 class Quarantine_Table extends \WP_List_Table {
     private $status;
+    private $page;
 
-    public function __construct($status) {
+    /** $status '' = all submissions (the log). */
+    public function __construct($status, $page = 'spam-killer') {
         $this->status = $status;
+        $this->page = $page;
         parent::__construct(array('singular' => 'submission', 'plural' => 'submissions', 'ajax' => false));
     }
 
     public function get_columns() {
-        return array('cb' => '<input type="checkbox">', 'submission' => 'Submission', 'reasons' => 'Why held', 'form' => 'Form', 'created_at' => 'Received');
+        $columns = array('cb' => '<input type="checkbox">', 'submission' => 'Submission');
+        if ($this->page === 'spam-killer-log') {
+            $columns['outcome'] = 'Outcome';
+        }
+        return $columns + array('reasons' => 'Why held', 'form' => 'Form', 'created_at' => 'Received');
     }
 
     protected function get_bulk_actions() {
@@ -44,9 +51,10 @@ class Quarantine_Table extends \WP_List_Table {
         $per_page = 20;
         $page = $this->get_pagenum();
         $total = count_items($this->status);
+        $where = $this->status === '' ? '' : $wpdb->prepare(' WHERE status = %s', $this->status);
         $rows = $wpdb->get_results($wpdb->prepare(
-            'SELECT * FROM ' . table('quarantine') . ' WHERE status = %s ORDER BY id DESC LIMIT %d OFFSET %d',
-            $this->status, $per_page, ($page - 1) * $per_page
+            'SELECT * FROM ' . table('submissions') . $where . ' ORDER BY id DESC LIMIT %d OFFSET %d',
+            $per_page, ($page - 1) * $per_page
         ), ARRAY_A) ?: array();
         foreach ($rows as &$row) {
             $row['fields'] = json_decode($row['fields'], true) ?: array();
@@ -58,7 +66,7 @@ class Quarantine_Table extends \WP_List_Table {
     }
 
     public function no_items() {
-        echo $this->status === 'quarantined' ? 'Nothing in quarantine.' : 'No released submissions.';
+        echo $this->status === 'quarantined' ? 'Nothing in quarantine.' : 'No submissions.';
     }
 
     protected function column_cb($item) {
@@ -67,9 +75,14 @@ class Quarantine_Table extends \WP_List_Table {
 
     protected function column_submission($item) {
         list($who, $text) = summary($item['fields']);
-        $url = page_url('spam-killer', array('item' => $item['id']));
+        $url = page_url($this->page, array('item' => $item['id']));
         return sprintf('<a class="row-title" href="%s">%s</a><div class="sk-excerpt">%s</div><div class="row-actions"><span><a href="%s">View</a></span></div>',
             esc_url($url), esc_html($who !== '' ? $who : '(no name or email)'), esc_html($text), esc_url($url));
+    }
+
+    protected function column_outcome($item) {
+        $labels = array('passed' => 'Passed', 'quarantined' => 'Held', 'released' => 'Released');
+        return sprintf('<span class="sk-outcome sk-o-%s">%s</span>', esc_attr($item['status']), esc_html($labels[$item['status']] ?? $item['status']));
     }
 
     protected function column_reasons($item) {

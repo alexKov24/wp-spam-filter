@@ -6,9 +6,10 @@ defined('ABSPATH') || exit;
 
 add_action('spam_killer_expire', __NAMESPACE__ . '\\expire');
 
-function quarantine(array $submission, array $reasons) {
+/** Stores every submission: 'passed' when clean, 'quarantined' when held. */
+function log_submission(array $submission, array $reasons) {
     global $wpdb;
-    $wpdb->insert(table('quarantine'), array(
+    $wpdb->insert(table('submissions'), array(
         'source' => $submission['source'],
         'form_id' => substr($submission['form_id'], 0, 80),
         'form_title' => substr($submission['form_title'], 0, 255),
@@ -16,7 +17,7 @@ function quarantine(array $submission, array $reasons) {
         'reasons' => wp_json_encode($reasons),
         'ip' => $submission['ip'],
         'page_url' => substr($submission['page_url'], 0, 2048),
-        'status' => 'quarantined',
+        'status' => $reasons ? 'quarantined' : 'passed',
         'created_at' => gmdate('Y-m-d H:i:s'),
     ));
     return (int) $wpdb->insert_id;
@@ -24,7 +25,7 @@ function quarantine(array $submission, array $reasons) {
 
 function get_item($id) {
     global $wpdb;
-    $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . table('quarantine') . ' WHERE id = %d', $id), ARRAY_A);
+    $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . table('submissions') . ' WHERE id = %d', $id), ARRAY_A);
     if (!$row) {
         return null;
     }
@@ -33,9 +34,13 @@ function get_item($id) {
     return $row;
 }
 
+/** $status '' = all submissions. */
 function count_items($status = 'quarantined') {
     global $wpdb;
-    return (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . table('quarantine') . ' WHERE status = %s', $status));
+    if ($status === '') {
+        return (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . table('submissions'));
+    }
+    return (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . table('submissions') . ' WHERE status = %s', $status));
 }
 
 /**
@@ -64,7 +69,7 @@ function release($id) {
         $headers[] = 'Reply-To: ' . field_text($reply['value']);
     }
     $sent = wp_mail(get_option('admin_email'), '[' . wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) . '] Released submission: ' . $title, $body, $headers);
-    $wpdb->update(table('quarantine'), array('status' => 'released', 'released_at' => gmdate('Y-m-d H:i:s')), array('id' => $id));
+    $wpdb->update(table('submissions'), array('status' => 'released', 'released_at' => gmdate('Y-m-d H:i:s')), array('id' => $id));
     return (bool) $sent;
 }
 
@@ -74,17 +79,17 @@ function delete_items(array $ids) {
     if (!$ids) {
         return 0;
     }
-    return (int) $wpdb->query('DELETE FROM ' . table('quarantine') . ' WHERE id IN (' . implode(',', $ids) . ')');
+    return (int) $wpdb->query('DELETE FROM ' . table('submissions') . ' WHERE id IN (' . implode(',', $ids) . ')');
 }
 
 function delete_all($status = 'quarantined') {
     global $wpdb;
-    return (int) $wpdb->delete(table('quarantine'), array('status' => $status));
+    return (int) $wpdb->delete(table('submissions'), array('status' => $status));
 }
 
-/** Daily cron: delete items older than the configured number of days. */
+/** Daily cron: delete submissions (any status) older than the configured number of days. */
 function expire() {
     global $wpdb;
     $cutoff = gmdate('Y-m-d H:i:s', time() - settings()['expire_days'] * DAY_IN_SECONDS);
-    $wpdb->query($wpdb->prepare('DELETE FROM ' . table('quarantine') . ' WHERE created_at < %s', $cutoff));
+    $wpdb->query($wpdb->prepare('DELETE FROM ' . table('submissions') . ' WHERE created_at < %s', $cutoff));
 }

@@ -22,7 +22,7 @@ function sub($fields, $form = '7', $source = 'cf7') {
 
 global $wpdb;
 $wpdb->query('DELETE FROM ' . table('rules'));
-$wpdb->query('DELETE FROM ' . table('quarantine'));
+$wpdb->query('DELETE FROM ' . table('submissions'));
 update_option('spam_killer_settings', array());
 $_SERVER['REMOTE_ADDR'] = '203.0.113.' . wp_rand(1, 250);
 
@@ -106,7 +106,7 @@ check('released item changes status', get_item($id)['status'] === 'released');
 check('cannot release twice', is_wp_error(release($id)));
 check('delete removes item', delete_items(array($id)) === 1 && get_item($id) === null);
 $old = screen($s);
-$wpdb->update(table('quarantine'), array('created_at' => gmdate('Y-m-d H:i:s', time() - 31 * DAY_IN_SECONDS)), array('id' => $old));
+$wpdb->update(table('submissions'), array('created_at' => gmdate('Y-m-d H:i:s', time() - 31 * DAY_IN_SECONDS)), array('id' => $old));
 $fresh = screen($s);
 expire();
 check('expiry deletes items older than 30 days only', get_item($old) === null && get_item($fresh) !== null);
@@ -137,6 +137,44 @@ check('elementor clean submission continues', !$died);
 $h = new Fake_Handler(); $h->errors = array('email' => 'Invalid');
 list($died) = $run(array('email' => array('id' => 'email', 'type' => 'email', 'title' => 'Email', 'value' => 'x@mailinator.com', 'raw_value' => 'x@mailinator.com')), $h);
 check('elementor invalid submission left to Elementor', !$died);
+
+// Log: clean submissions are stored as passed.
+check('clean submission returns 0 from screen', screen(make_submission('cf7', 'log-' . wp_rand(), 'Log', $clean['fields'])) === 0);
+check('clean submission is logged as passed', ($row = get_item((int) $wpdb->get_var('SELECT MAX(id) FROM ' . table('submissions')))) && $row['status'] === 'passed' && $row['reasons'] === array());
+
+// Honeypot.
+$_POST['sk_hp'] = 'http://spam.example';
+check('filled honeypot is caught', array_column(inspect(make_submission('cf7', 'hp', 'HP', $clean['fields'])), 'module') === array('honeypot'));
+$_POST['sk_hp'] = '';
+check('empty honeypot passes', inspect(make_submission('cf7', 'hp', 'HP', $clean['fields'])) === array());
+unset($_POST['sk_hp']);
+check('missing honeypot (cached page) passes', inspect(make_submission('cf7', 'hp', 'HP', $clean['fields'])) === array());
+check('honeypot added to CF7 markup', strpos(apply_filters('wpcf7_form_elements', '<p>x</p>'), 'name="sk_hp"') !== false);
+class Fake_Widget { public function get_name() { return 'form'; } }
+check('honeypot added inside Elementor form', preg_match('~name="sk_hp".*</form>~s', apply_filters('elementor/widget/render_content', '<form><input></form>', new Fake_Widget())) === 1);
+update_option('spam_killer_settings', array('modules' => array('honeypot' => false)));
+check('honeypot off adds nothing', apply_filters('wpcf7_form_elements', '<p>x</p>') === '<p>x</p>');
+update_option('spam_killer_settings', array());
+
+// Editable disposable list.
+check('domain list parsing', SpamKiller\domain_list("Foo.com, bar@baz.org\nwww.qux.net\nnot a domain\nfoo.com") === array('foo.com', 'baz.org', 'qux.net'));
+update_option('spam_killer_settings', SpamKiller\sanitize_settings(array('modules' => array('disposable_email' => 1), 'disposable_block' => 'spammy.example', 'disposable_allow' => 'mailinator.com')));
+check('extra blocked domain is caught', is_disposable_email('a@mail.spammy.example'));
+check('allowed domain overrides built-in list', !is_disposable_email('a@mailinator.com'));
+check('other built-in domains still blocked', is_disposable_email('a@guerrillamail.com'));
+update_option('spam_killer_settings', array());
+
+// Default banned-word rules.
+$defaults = SpamKiller\default_rules();
+check('default rules are valid', count($defaults) === 3 && !array_filter(array_map('is_wp_error', array_map('SpamKiller\\validate_rule', $defaults))));
+$hit = function ($text) use ($defaults) {
+    $sub = make_submission('cf7', '1', 'T', array(array('id' => 'your-message', 'label' => '', 'type' => 'textarea', 'value' => $text)));
+    foreach ($defaults as $rule) { if (rule_matches(validate_rule($rule), $sub)) { return true; } }
+    return false;
+};
+check('default rules catch SEO pitch', $hit('We can get you to the FIRST PAGE of Google with quality backlinks'));
+check('default rules catch crypto bait', $hit('Withdraw your Bitcoin now'));
+check('default rules ignore a normal enquiry', !$hit('Hi, I live in Essex and want to book a lesson for my kids next week.'));
 
 // Visitor response modes.
 $spam_fields = array('email' => array('id' => 'email', 'type' => 'email', 'title' => 'Email', 'value' => 'y@mailinator.com', 'raw_value' => 'y@mailinator.com'));
