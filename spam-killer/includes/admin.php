@@ -12,6 +12,8 @@ add_action('admin_init', function () {
 });
 add_action('admin_post_spam_killer_quarantine', __NAMESPACE__ . '\\handle_quarantine_action');
 add_action('admin_post_spam_killer_rule', __NAMESPACE__ . '\\handle_rule_action');
+add_action('admin_post_spam_killer_export', __NAMESPACE__ . '\\export_csv');
+require_once __DIR__ . '/forms-page.php';
 add_action('admin_enqueue_scripts', function () {
     $page = isset($_GET['page']) ? sanitize_key($_GET['page']) : '';
     if (strpos($page, 'spam-killer') === 0) {
@@ -26,6 +28,7 @@ function admin_menu() {
     add_menu_page('Spam Killer', 'Spam Killer' . $badge, CAP, 'spam-killer', __NAMESPACE__ . '\\quarantine_page', 'dashicons-shield', 80);
     add_submenu_page('spam-killer', 'Quarantine', 'Quarantine', CAP, 'spam-killer', __NAMESPACE__ . '\\quarantine_page');
     add_submenu_page('spam-killer', 'Log', 'Log', CAP, 'spam-killer-log', __NAMESPACE__ . '\\log_page');
+    add_submenu_page('spam-killer', 'Forms', 'Forms', CAP, 'spam-killer-forms', __NAMESPACE__ . '\\forms_page');
     add_submenu_page('spam-killer', 'Rules', 'Rules', CAP, 'spam-killer-rules', __NAMESPACE__ . '\\rules_page');
     add_submenu_page('spam-killer', 'Settings', 'Settings', CAP, 'spam-killer-settings', __NAMESPACE__ . '\\settings_page');
 }
@@ -41,6 +44,7 @@ function notice() {
         'deleted' => array('success', 'Deleted.'),
         'rule_saved' => array('success', 'Rule saved.'),
         'rule_deleted' => array('success', 'Rule deleted.'),
+        'form_saved' => array('success', 'Form protection saved.'),
     );
     $key = isset($_GET['sk_notice']) ? sanitize_key($_GET['sk_notice']) : '';
     if (isset($messages[$key])) {
@@ -124,7 +128,8 @@ function log_page() {
     }
     require_once __DIR__ . '/list-table.php';
     $status = isset($_GET['status']) && in_array($_GET['status'], array('passed', 'quarantined', 'released'), true) ? $_GET['status'] : '';
-    $table = new Quarantine_Table($status, 'spam-killer-log');
+    $filters = log_filters();
+    $table = new Quarantine_Table($status, 'spam-killer-log', $filters);
     $table->prepare_items();
     echo '<div class="wrap"><h1 class="wp-heading-inline">Log</h1><hr class="wp-header-end">';
     notice();
@@ -132,9 +137,24 @@ function log_page() {
     $views = array('' => 'All', 'passed' => 'Passed', 'quarantined' => 'Held', 'released' => 'Released');
     $links = array();
     foreach ($views as $key => $label) {
-        $links[] = sprintf('<li><a href="%s"%s>%s <span class="count">(%d)</span></a></li>', esc_url(page_url('spam-killer-log', array_filter(array('status' => $key)))), $key === $status ? ' class="current"' : '', $label, count_items($key));
+        $links[] = sprintf('<li><a href="%s"%s>%s <span class="count">(%d)</span></a></li>', esc_url(page_url('spam-killer-log', array_filter(array('status' => $key) + $filters))), $key === $status ? ' class="current"' : '', $label, count_items($key, $filters));
     }
     echo '<ul class="subsubsub">' . implode(' | ', $links) . '</ul>';
+    // Filters (GET) and export.
+    $forms = array();
+    foreach (all_forms() as $f) {
+        $forms[$f['key']] = $f['name'] . ' (' . ($f['source'] === 'cf7' ? 'CF7' : 'Elementor') . ')';
+    }
+    echo '<form method="get" class="sk-log-filters"><input type="hidden" name="page" value="spam-killer-log">';
+    if ($status !== '') {
+        printf('<input type="hidden" name="status" value="%s">', esc_attr($status));
+    }
+    echo '<select name="form" aria-label="Form"><option value="">All forms</option>';
+    foreach ($forms as $key => $label) {
+        printf('<option value="%s"%s>%s</option>', esc_attr($key), selected($filters['form'] ?? '', $key, false), esc_html($label));
+    }
+    printf('</select> <input type="search" name="s" value="%s" placeholder="Search submissions…" aria-label="Search submissions"> <button class="button">Filter</button>', esc_attr($filters['s'] ?? ''));
+    printf(' <a class="button" href="%s">Export CSV</a></form>', esc_url(wp_nonce_url(add_query_arg(array_filter(array('action' => 'spam_killer_export', 'status' => $status) + $filters), admin_url('admin-post.php')), 'spam_killer_export')));
     printf('<form method="post" action="%s">', esc_url(admin_url('admin-post.php')));
     wp_nonce_field('spam_killer_quarantine', 'sk_nonce');
     echo '<input type="hidden" name="action" value="spam_killer_quarantine"><input type="hidden" name="back" value="spam-killer-log">';
@@ -407,4 +427,58 @@ function settings_page() {
     echo '</tbody></table>';
     submit_button();
     echo '</form></div>';
+}
+
+/* ---------- Log filters and export ---------- */
+
+/** Log filters from the query string: form key and search text. */
+function log_filters() {
+    $filters = array();
+    if (!empty($_GET['form']) && preg_match('/^(cf7|elementor):[A-Za-z0-9_-]{1,80}$/D', wp_unslash($_GET['form']))) {
+        $filters['form'] = wp_unslash($_GET['form']);
+    }
+    if (isset($_GET['s']) && trim(wp_unslash($_GET['s'])) !== '') {
+        $filters['s'] = sanitize_text_field(wp_unslash($_GET['s']));
+    }
+    return $filters;
+}
+
+function export_csv() {
+    if (!current_user_can(CAP)) {
+        wp_die('Not allowed.', 403);
+    }
+    check_admin_referer('spam_killer_export');
+    $status = isset($_GET['status']) && in_array($_GET['status'], array('passed', 'quarantined', 'released'), true) ? $_GET['status'] : '';
+    $rows = query_items($status, log_filters(), 0, 0);
+    $labels = array();
+    foreach ($rows as $row) {
+        foreach ($row['fields'] as $f) {
+            $labels[$f['label'] !== '' ? $f['label'] : $f['id']] = true;
+        }
+    }
+    $labels = array_keys($labels);
+    nocache_headers();
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="spam-killer-' . gmdate('Y-m-d') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // BOM so Excel reads UTF-8 (Hebrew) correctly.
+    fputcsv($out, array_merge(array('ID', 'Received', 'Outcome', 'Form', 'Plugin', 'Why held', 'IP', 'Page'), $labels), ',', '"', '');
+    foreach ($rows as $row) {
+        $values = array();
+        foreach ($row['fields'] as $f) {
+            $values[$f['label'] !== '' ? $f['label'] : $f['id']] = field_text($f['value']);
+        }
+        $line = array(
+            $row['id'], get_date_from_gmt($row['created_at']), $row['status'], $row['form_title'], $row['source'],
+            implode('; ', array_column($row['reasons'], 'reason')), $row['ip'], $row['page_url'],
+        );
+        foreach ($labels as $label) {
+            $line[] = $values[$label] ?? '';
+        }
+        // Neutralise spreadsheet formulas in submitted values (CSV injection).
+        $line = array_map(function ($v) { $v = (string) $v; return preg_match('/^[=+\-@\t\r]/', $v) ? "'" . $v : $v; }, $line);
+        fputcsv($out, $line, ',', '"', '');
+    }
+    fclose($out);
+    exit;
 }

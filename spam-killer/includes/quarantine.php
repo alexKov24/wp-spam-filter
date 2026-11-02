@@ -13,8 +13,9 @@ function log_submission(array $submission, array $reasons) {
         'source' => $submission['source'],
         'form_id' => substr($submission['form_id'], 0, 80),
         'form_title' => substr($submission['form_title'], 0, 255),
-        'fields' => wp_json_encode($submission['fields']),
-        'reasons' => wp_json_encode($reasons),
+        // Unescaped so log search (LIKE) finds non-Latin text such as Hebrew.
+        'fields' => wp_json_encode($submission['fields'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'reasons' => wp_json_encode($reasons, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         'ip' => $submission['ip'],
         'page_url' => substr($submission['page_url'], 0, 2048),
         'status' => $reasons ? 'quarantined' : 'passed',
@@ -34,13 +35,42 @@ function get_item($id) {
     return $row;
 }
 
-/** $status '' = all submissions. */
-function count_items($status = 'quarantined') {
+/** WHERE clause for a status ('' = all) and filters (form key, search text). */
+function items_where($status, array $filters = array()) {
     global $wpdb;
-    if ($status === '') {
-        return (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . table('submissions'));
+    $where = array('1=1');
+    if ($status !== '') {
+        $where[] = $wpdb->prepare('status = %s', $status);
     }
-    return (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . table('submissions') . ' WHERE status = %s', $status));
+    if (!empty($filters['form'])) {
+        list($source, $form_id) = explode(':', $filters['form'], 2);
+        $where[] = $wpdb->prepare('source = %s AND form_id = %s', $source, $form_id);
+    }
+    if (!empty($filters['s'])) {
+        $like = '%' . $wpdb->esc_like($filters['s']) . '%';
+        $where[] = $wpdb->prepare('(fields LIKE %s OR ip LIKE %s OR form_title LIKE %s)', $like, $like, $like);
+    }
+    return ' WHERE ' . implode(' AND ', $where);
+}
+
+function count_items($status = 'quarantined', array $filters = array()) {
+    global $wpdb;
+    return (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . table('submissions') . items_where($status, $filters));
+}
+
+/** Newest first. $limit 0 = all. */
+function query_items($status, array $filters, $limit, $offset) {
+    global $wpdb;
+    $sql = 'SELECT * FROM ' . table('submissions') . items_where($status, $filters) . ' ORDER BY id DESC';
+    if ($limit) {
+        $sql .= $wpdb->prepare(' LIMIT %d OFFSET %d', $limit, $offset);
+    }
+    $rows = $wpdb->get_results($sql, ARRAY_A) ?: array();
+    foreach ($rows as &$row) {
+        $row['fields'] = json_decode($row['fields'], true) ?: array();
+        $row['reasons'] = json_decode($row['reasons'], true) ?: array();
+    }
+    return $rows;
 }
 
 /**

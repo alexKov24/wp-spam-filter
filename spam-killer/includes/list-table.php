@@ -11,11 +11,13 @@ if (!class_exists('WP_List_Table')) {
 class Quarantine_Table extends \WP_List_Table {
     private $status;
     private $page;
+    private $filters;
 
     /** $status '' = all submissions (the log). */
-    public function __construct($status, $page = 'spam-killer') {
+    public function __construct($status, $page = 'spam-killer', array $filters = array()) {
         $this->status = $status;
         $this->page = $page;
+        $this->filters = $filters;
         parent::__construct(array('singular' => 'submission', 'plural' => 'submissions', 'ajax' => false));
     }
 
@@ -47,20 +49,10 @@ class Quarantine_Table extends \WP_List_Table {
     }
 
     public function prepare_items() {
-        global $wpdb;
         $per_page = 20;
         $page = $this->get_pagenum();
-        $total = count_items($this->status);
-        $where = $this->status === '' ? '' : $wpdb->prepare(' WHERE status = %s', $this->status);
-        $rows = $wpdb->get_results($wpdb->prepare(
-            'SELECT * FROM ' . table('submissions') . $where . ' ORDER BY id DESC LIMIT %d OFFSET %d',
-            $per_page, ($page - 1) * $per_page
-        ), ARRAY_A) ?: array();
-        foreach ($rows as &$row) {
-            $row['fields'] = json_decode($row['fields'], true) ?: array();
-            $row['reasons'] = json_decode($row['reasons'], true) ?: array();
-        }
-        $this->items = $rows;
+        $total = count_items($this->status, $this->filters);
+        $this->items = query_items($this->status, $this->filters, $per_page, ($page - 1) * $per_page);
         $this->_column_headers = array($this->get_columns(), array(), array());
         $this->set_pagination_args(array('total_items' => $total, 'per_page' => $per_page));
     }

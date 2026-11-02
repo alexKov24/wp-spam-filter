@@ -24,3 +24,9 @@
 .column-outcome { width: 90px; }
 .sk-domains { margin-top: 10px; max-width: 640px; }
 .sk-domains summary { cursor: pointer; color: #2271b1; }
+.sk-small { font-size: 12px; color: #646970; }
+.sk-muted { color: #8c8f94; }
+.sk-held { color: #b32d2e; }
+.sk-search, .sk-log-filters { margin: 12px 0; }
+.sk-log-filters { clear: both; padding-top: 8px; }
+.sk-forms td { vertical-align: top; }

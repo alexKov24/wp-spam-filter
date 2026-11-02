@@ -26,6 +26,7 @@ require_once __DIR__ . '/includes/pipeline.php';
 require_once __DIR__ . '/includes/cf7.php';
 require_once __DIR__ . '/includes/elementor.php';
 require_once __DIR__ . '/includes/honeypot.php';
+require_once __DIR__ . '/includes/forms.php';
 require_once __DIR__ . '/includes/admin.php';
 
 register_activation_hook(__FILE__, __NAMESPACE__ . '\\install');

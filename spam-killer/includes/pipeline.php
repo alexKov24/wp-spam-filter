@@ -19,7 +19,7 @@ function inspect(array $submission) {
             break;
         }
         foreach ($modules as $id => $module) {
-            if ((bool) ($module['remote'] ?? false) !== $remote || empty($settings['modules'][$id]) || !is_callable($module['check'] ?? null)) {
+            if ((bool) ($module['remote'] ?? false) !== $remote || !module_on($id, $submission['source'], $submission['form_id']) || !is_callable($module['check'] ?? null)) {
                 continue;
             }
             try {

@@ -176,6 +176,28 @@ check('default rules catch SEO pitch', $hit('We can get you to the FIRST PAGE of
 check('default rules catch crypto bait', $hit('Withdraw your Bitcoin now'));
 check('default rules ignore a normal enquiry', !$hit('Hi, I live in Essex and want to book a lesson for my kids next week.'));
 
+// Per-form module overrides.
+$dispo = array(array('id' => 'your-email', 'label' => '', 'type' => 'email', 'value' => 'z@mailinator.com'));
+SpamKiller\save_form_overrides('cf7:news', array('disposable_email' => 'off'));
+check('override turns a module off for one form', inspect(make_submission('cf7', 'news', 'N', $dispo)) === array());
+check('other forms keep the site default', count(inspect(make_submission('cf7', 'other', 'O', $dispo))) === 1);
+update_option('spam_killer_settings', array('modules' => array('disposable_email' => false)));
+SpamKiller\save_form_overrides('cf7:sales', array('disposable_email' => 'on'));
+check('override turns a module on when the site has it off', count(inspect(make_submission('cf7', 'sales', 'S', $dispo))) === 1);
+SpamKiller\save_form_overrides('cf7:sales', array('disposable_email' => ''));
+check('"site default" removes the override', SpamKiller\form_overrides('cf7:sales') === array());
+delete_option('spam_killer_overrides');
+update_option('spam_killer_settings', array());
+
+// Log filters.
+$wpdb->query('DELETE FROM ' . table('submissions'));
+$heb = make_submission('cf7', 'f1', 'F1', array(array('id' => 'msg', 'label' => 'הודעה', 'type' => 'textarea', 'value' => 'שלום, אני רוצה הצעת מחיר')));
+SpamKiller\log_submission($heb, array());
+SpamKiller\log_submission(make_submission('elementor', 'abc', 'F2', $clean['fields']), array(array('module' => 'rules', 'reason' => 'x')));
+check('filter by form', SpamKiller\count_items('', array('form' => 'cf7:f1')) === 1);
+check('search finds Hebrew text', SpamKiller\count_items('', array('s' => 'הצעת מחיר')) === 1);
+check('search + status combine', SpamKiller\count_items('quarantined', array('s' => 'hours')) === 1 && SpamKiller\count_items('passed', array('s' => 'hours')) === 0);
+
 // Visitor response modes.
 $spam_fields = array('email' => array('id' => 'email', 'type' => 'email', 'title' => 'Email', 'value' => 'y@mailinator.com', 'raw_value' => 'y@mailinator.com'));
 update_option('spam_killer_settings', SpamKiller\sanitize_settings(array('response' => 'review', 'review_message' => 'נבדק, נחזור אליך', 'modules' => array('disposable_email' => 1))));

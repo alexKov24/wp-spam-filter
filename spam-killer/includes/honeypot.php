@@ -10,19 +10,20 @@ namespace SpamKiller;
 defined('ABSPATH') || exit;
 
 add_filter('wpcf7_form_elements', function ($html) {
-    return honeypot_on() ? $html . honeypot_html() : $html;
+    $form = function_exists('wpcf7_get_current_contact_form') ? wpcf7_get_current_contact_form() : null;
+    return honeypot_on('cf7', $form ? $form->id() : '') ? $html . honeypot_html() : $html;
 });
 
 add_filter('elementor/widget/render_content', function ($content, $widget) {
-    if (!honeypot_on() || !is_object($widget) || !method_exists($widget, 'get_name') || $widget->get_name() !== 'form') {
+    if (!is_object($widget) || !method_exists($widget, 'get_name') || $widget->get_name() !== 'form' || !honeypot_on('elementor', method_exists($widget, 'get_id') ? $widget->get_id() : '')) {
         return $content;
     }
     $pos = strripos($content, '</form>');
     return $pos === false ? $content : substr_replace($content, honeypot_html(), $pos, 0);
 }, 10, 2);
 
-function honeypot_on() {
-    return !empty(settings()['modules']['honeypot']);
+function honeypot_on($source, $form_id) {
+    return module_on('honeypot', $source, (string) $form_id);
 }
 
 function honeypot_html() {
