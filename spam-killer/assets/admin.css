@@ -33,3 +33,6 @@
 .sk-mail-sent { color: #00701a; }
 .sk-mail-failed { color: #b32d2e; font-weight: 600; }
 .column-mail { width: 110px; }
+.sk-warn { color: #b32d2e; font-weight: 600; max-width: 640px; }
+.sk-scripts label { display: inline-block; min-width: 230px; margin: 2px 0; }
+.sk-inline-fields legend { margin-bottom: 4px; }

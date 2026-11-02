@@ -13,6 +13,15 @@ add_action('admin_init', function () {
 add_action('admin_post_spam_killer_quarantine', __NAMESPACE__ . '\\handle_quarantine_action');
 add_action('admin_post_spam_killer_rule', __NAMESPACE__ . '\\handle_rule_action');
 add_action('admin_post_spam_killer_export', __NAMESPACE__ . '\\export_csv');
+add_action('admin_post_spam_killer_clear_errors', function () {
+    if (!current_user_can(CAP)) {
+        wp_die('Not allowed.', 403);
+    }
+    check_admin_referer('spam_killer_clear_errors');
+    delete_option('spam_killer_errors');
+    wp_safe_redirect(page_url('spam-killer-settings'));
+    exit;
+});
 require_once __DIR__ . '/forms-page.php';
 add_action('admin_enqueue_scripts', function () {
     $page = isset($_GET['page']) ? sanitize_key($_GET['page']) : '';
@@ -216,7 +225,7 @@ function item_page($id, $back = 'spam-killer') {
         }
         echo '</ul></div>';
     } else {
-        echo '<div class="sk-card"><p>No filter matched. This submission was delivered normally.</p></div>';
+        echo '<div class="sk-card"><p>No filter matched, so the form ran normally (its emails and actions were not blocked).</p></div>';
     }
     echo '<div class="sk-card"><h2>Submitted values</h2><table class="widefat striped"><tbody>';
     foreach ($item['fields'] as $f) {
@@ -449,7 +458,16 @@ function settings_page() {
         return;
     }
     $s = settings();
-    echo '<div class="wrap"><h1>Settings</h1><form method="post" action="options.php">';
+    echo '<div class="wrap"><h1>Settings</h1>';
+    $errors = (array) get_option('spam_killer_errors', array());
+    if ($errors) {
+        echo '<div class="notice notice-warning"><p><strong>Some modules failed recently.</strong> Failed checks never count as spam, but they don\'t protect either.</p><ul class="sk-reasons">';
+        foreach (array_slice($errors, 0, 5) as $e) {
+            printf('<li>%s — %s: %s</li>', esc_html(human_time_diff($e['time']) . ' ago'), esc_html(module_label($e['module'])), esc_html($e['message']));
+        }
+        printf('</ul><p><a href="%s">Clear</a></p></div>', esc_url(wp_nonce_url(admin_url('admin-post.php?action=spam_killer_clear_errors'), 'spam_killer_clear_errors')));
+    }
+    echo '<form method="post" action="options.php">';
     settings_fields('spam_killer');
     echo '<h2>Modules</h2><table class="form-table"><tbody>';
     foreach (all_modules() as $id => $module) {
@@ -457,6 +475,32 @@ function settings_page() {
             esc_html($module['label']), esc_attr($id), checked(!empty($s['modules'][$id]), true, false), esc_html($module['description']));
         if ($id === 'rate_limit') {
             printf('<p class="sk-inline-fields">Allow <input type="number" min="1" max="1000" name="spam_killer_settings[rate_limit_max]" value="%d" class="small-text" aria-label="Maximum submissions"> submissions per form every <input type="number" min="1" max="1440" name="spam_killer_settings[rate_limit_minutes]" value="%d" class="small-text" aria-label="Minutes"> minutes from one IP.</p>', $s['rate_limit_max'], $s['rate_limit_minutes']);
+        }
+        if ($id === 'time_trap') {
+            printf('<p class="sk-inline-fields">Hold forms sent less than <input type="number" min="1" max="60" name="spam_killer_settings[time_trap_seconds]" value="%d" class="small-text" aria-label="Seconds"> seconds after the page loaded.</p>', $s['time_trap_seconds']);
+        }
+        if ($id === 'rate_limit') {
+            echo '<fieldset class="sk-inline-fields"><legend>Visitor IP comes from:</legend>';
+            foreach (ip_sources() as $key => $label) {
+                printf('<label><input type="radio" name="spam_killer_settings[ip_source]" value="%s"%s> %s</label><br>', esc_attr($key), checked($s['ip_source'], $key, false), esc_html($label));
+            }
+            if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && $s['ip_source'] !== 'cloudflare') {
+                echo '<p class="sk-warn">This site looks like it is behind Cloudflare. Choose Cloudflare, or every visitor will share one IP and the rate limit will hold real people.</p>';
+            } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR']) && $s['ip_source'] === 'remote') {
+                echo '<p class="sk-warn">This site looks like it is behind a proxy. If all submissions show the same IP, choose the proxy option.</p>';
+            }
+            echo '</fieldset>';
+        }
+        if ($id === 'wp_blocklist') {
+            $count = count(array_filter(array_map('trim', explode("\n", (string) get_option('disallowed_keys', ''))), 'strlen'));
+            printf('<p class="sk-small">%s <a href="%s">Edit the list</a>.</p>', $count ? sprintf('%d entries.', $count) : 'The list is empty.', esc_url(admin_url('options-discussion.php#disallowed_keys')));
+        }
+        if ($id === 'scripts') {
+            echo '<fieldset class="sk-inline-fields sk-scripts"><legend>Hold messages written mostly in:</legend>';
+            foreach (scripts() as $key => $script) {
+                printf('<label><input type="checkbox" name="spam_killer_settings[blocked_scripts][]" value="%s"%s> %s</label>', esc_attr($key), checked(in_array($key, $s['blocked_scripts'], true), true, false), esc_html($script[0]));
+            }
+            echo '</fieldset>';
         }
         if ($id === 'disposable_email') {
             printf('<details class="sk-domains"%s><summary>Edit the list (%s domains built in)</summary>', ($s['disposable_block'] || $s['disposable_allow']) ? ' open' : '', number_format_i18n(count(disposable_domains())));

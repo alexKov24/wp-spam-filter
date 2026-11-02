@@ -152,8 +152,8 @@ check('missing honeypot (cached page) passes', inspect(make_submission('cf7', 'h
 check('honeypot added to CF7 markup', strpos(apply_filters('wpcf7_form_elements', '<p>x</p>'), 'name="sk_hp"') !== false);
 class Fake_Widget { public function get_name() { return 'form'; } }
 check('honeypot added inside Elementor form', preg_match('~name="sk_hp".*</form>~s', apply_filters('elementor/widget/render_content', '<form><input></form>', new Fake_Widget())) === 1);
-update_option('spam_killer_settings', array('modules' => array('honeypot' => false)));
-check('honeypot off adds nothing', apply_filters('wpcf7_form_elements', '<p>x</p>') === '<p>x</p>');
+update_option('spam_killer_settings', array('modules' => array('honeypot' => false, 'time_trap' => false)));
+check('honeypot and time trap off add nothing', apply_filters('wpcf7_form_elements', '<p>x</p>') === '<p>x</p>');
 update_option('spam_killer_settings', array());
 
 // Editable disposable list.
@@ -197,6 +197,62 @@ SpamKiller\log_submission(make_submission('elementor', 'abc', 'F2', $clean['fiel
 check('filter by form', SpamKiller\count_items('', array('form' => 'cf7:f1')) === 1);
 check('search finds Hebrew text', SpamKiller\count_items('', array('s' => 'הצעת מחיר')) === 1);
 check('search + status combine', SpamKiller\count_items('quarantined', array('s' => 'hours')) === 1 && SpamKiller\count_items('passed', array('s' => 'hours')) === 0);
+
+// Time trap.
+$fresh_form = function () use ($clean) { return make_submission('cf7', 'tt-' . wp_rand(), 'TT', $clean['fields']); };
+$_POST['sk_ts'] = SpamKiller\time_token();
+check('instant submit is caught by time trap', array_column(inspect($fresh_form()), 'module') === array('time_trap'));
+$_POST['sk_ts'] = SpamKiller\time_token(time() - 30);
+check('slow submit passes time trap', inspect($fresh_form()) === array());
+$_POST['sk_ts'] = (time()) . '.0000000000000000';
+check('forged token is ignored, not flagged', inspect($fresh_form()) === array());
+unset($_POST['sk_ts']);
+check('time token is added to forms', strpos(apply_filters('wpcf7_form_elements', ''), 'name="sk_ts"') !== false);
+
+// WordPress disallowed words.
+update_option('disallowed_keys', "cheap-pills\n198.51.100.9");
+check('WP disallowed word is caught', array_column(inspect(make_submission('cf7', 'bl', 'BL', array(array('id' => 'm', 'label' => '', 'type' => 'textarea', 'value' => 'Buy CHEAP-PILLS now')))), 'module') === array('wp_blocklist'));
+$_SERVER['REMOTE_ADDR'] = '198.51.100.9';
+check('WP disallowed IP is caught', array_column(inspect(make_submission('cf7', 'bl2', 'BL', $clean['fields'])), 'module') === array('wp_blocklist'));
+$_SERVER['REMOTE_ADDR'] = '203.0.113.5';
+update_option('disallowed_keys', '');
+
+// Language filter.
+update_option('spam_killer_settings', SpamKiller\sanitize_settings(array('modules' => array('scripts' => 1), 'blocked_scripts' => array('cyrillic', 'han'))));
+$msg = function ($t) { return make_submission('cf7', 'lang', 'L', array(array('id' => 'm', 'label' => '', 'type' => 'textarea', 'value' => $t), array('id' => 'e', 'label' => '', 'type' => 'email', 'value' => 'a@b.com'))); };
+check('Cyrillic message is held', array_column(inspect($msg('Здравствуйте, хочу узнать цену на ваши услуги')), 'module') === array('scripts'));
+check('Chinese message is held', array_column(inspect($msg('你好，我想知道你们的价格是多少')), 'module') === array('scripts'));
+check('Hebrew message passes', inspect($msg('שלום, אני רוצה לקבוע שיעור לשבוע הבא')) === array());
+check('one Cyrillic word in English text passes', inspect($msg('Hello, my name is Иван and I would like to book a lesson please')) === array());
+update_option('spam_killer_settings', array());
+
+// Proxy IP.
+$_SERVER['HTTP_CF_CONNECTING_IP'] = '192.0.2.44';
+check('REMOTE_ADDR used by default', SpamKiller\client_ip() === '203.0.113.5');
+update_option('spam_killer_settings', array('ip_source' => 'cloudflare'));
+check('Cloudflare header used when chosen', SpamKiller\client_ip() === '192.0.2.44');
+$_SERVER['HTTP_CF_CONNECTING_IP'] = 'not-an-ip';
+check('invalid header falls back to REMOTE_ADDR', SpamKiller\client_ip() === '203.0.113.5');
+unset($_SERVER['HTTP_CF_CONNECTING_IP']);
+update_option('spam_killer_settings', array());
+
+// Module errors are recorded.
+delete_option('spam_killer_errors');
+add_filter('spam_killer_modules', function ($m) { $m['broken'] = array('label' => 'Broken', 'description' => '', 'remote' => false, 'check' => function () { throw new RuntimeException('boom'); }); return $m; });
+update_option('spam_killer_settings', array('modules' => array('broken' => true)));
+inspect($clean);
+check('module error shown in settings list', (get_option('spam_killer_errors')[0]['message'] ?? '') === 'boom');
+remove_all_filters('spam_killer_modules');
+update_option('spam_killer_settings', array());
+delete_option('spam_killer_errors');
+
+// Rule from submission.
+$rid = SpamKiller\log_submission(make_submission('cf7', 'rf', 'RF', array(array('id' => 'e', 'label' => '', 'type' => 'email', 'value' => 'mike@seo.example'), array('id' => 'm', 'label' => '', 'type' => 'textarea', 'value' => 'Visit https://www.backlinks.example/offer'))), array());
+$draft = SpamKiller\rule_from_submission($rid);
+check('rule from submission uses email and link domains', $draft['conditions'] === array(
+    array('field' => 'email', 'operator' => 'equals', 'value' => 'mike@seo.example'),
+    array('field' => 'link_domain', 'operator' => 'equals', 'value' => 'backlinks.example'),
+) && !is_wp_error(validate_rule($draft)));
 
 // Visitor response modes.
 $spam_fields = array('email' => array('id' => 'email', 'type' => 'email', 'title' => 'Email', 'value' => 'y@mailinator.com', 'raw_value' => 'y@mailinator.com'));

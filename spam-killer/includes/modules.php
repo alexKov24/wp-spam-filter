@@ -23,6 +23,12 @@ function all_modules() {
             'remote' => false,
             'check' => __NAMESPACE__ . '\\check_honeypot',
         ),
+        'time_trap' => array(
+            'label' => 'Time trap',
+            'description' => 'Quarantine forms sent faster than a person can type. Bots submit instantly.',
+            'remote' => false,
+            'check' => __NAMESPACE__ . '\\check_time_trap',
+        ),
         'rate_limit' => array(
             'label' => 'Rate limit',
             'description' => 'Quarantine when one visitor (IP) sends too many submissions to the same form.',
@@ -34,6 +40,18 @@ function all_modules() {
             'description' => 'Quarantine submissions from temporary email providers (mailinator.com, etc.).',
             'remote' => false,
             'check' => __NAMESPACE__ . '\\check_disposable_email',
+        ),
+        'wp_blocklist' => array(
+            'label' => 'WordPress disallowed words',
+            'description' => 'Quarantine submissions containing anything from Settings → Discussion → Disallowed Comment Keys (words, emails, IPs).',
+            'remote' => false,
+            'check' => __NAMESPACE__ . '\\check_wp_blocklist',
+        ),
+        'scripts' => array(
+            'label' => 'Language filter',
+            'description' => 'Quarantine messages written mostly in a writing system your visitors don\'t use.',
+            'remote' => false,
+            'check' => __NAMESPACE__ . '\\check_scripts',
         ),
         'rules' => array(
             'label' => 'Keyword & domain rules',
@@ -50,6 +68,57 @@ function check_honeypot(array $submission) {
         return array();
     }
     return array(array('reason' => 'The hidden honeypot field was filled in.', 'fields' => array()));
+}
+
+function check_time_trap(array $submission, array $settings) {
+    if ($submission['rendered_at'] === null) {
+        return array(); // No token: don't guess.
+    }
+    $elapsed = time() - $submission['rendered_at'];
+    if ($elapsed < $settings['time_trap_seconds']) {
+        return array(array('reason' => sprintf('Sent %d second(s) after the form loaded (minimum %d).', max(0, $elapsed), $settings['time_trap_seconds']), 'fields' => array()));
+    }
+    return array();
+}
+
+/** Same matching as WordPress comments: case-insensitive substring per line, on every field and the IP. */
+function check_wp_blocklist(array $submission) {
+    $keys = array_filter(array_map('trim', explode("\n", (string) get_option('disallowed_keys', ''))), 'strlen');
+    if (!$keys) {
+        return array();
+    }
+    $values = array('IP' => $submission['ip']);
+    foreach ($submission['fields'] as $field) {
+        $values[$field['id']] = field_text($field['value']);
+    }
+    foreach ($keys as $key) {
+        foreach ($values as $id => $value) {
+            if ($value !== '' && mb_stripos($value, $key) !== false) {
+                return array(array('reason' => 'Contains disallowed word "' . $key . '"', 'fields' => $id === 'IP' ? array() : array($id)));
+            }
+        }
+    }
+    return array();
+}
+
+/** Holds text where most letters belong to a blocked writing system. Needs at least 10 letters. */
+function check_scripts(array $submission, array $settings) {
+    if (!$settings['blocked_scripts']) {
+        return array();
+    }
+    $text = implode(' ', array_map(function ($f) { return in_array($f['type'], array('email', 'url', 'tel', 'number'), true) ? '' : field_text($f['value']); }, $submission['fields']));
+    $letters = preg_match_all('/\p{L}/u', $text);
+    if ($letters < 10) {
+        return array();
+    }
+    foreach ($settings['blocked_scripts'] as $key) {
+        $script = scripts()[$key];
+        $count = preg_match_all('/\p{' . $script[1] . '}/u', $text);
+        if ($count / $letters >= 0.5) {
+            return array(array('reason' => sprintf('Written mostly in %s (%d%% of letters).', $script[0], round(100 * $count / $letters)), 'fields' => array()));
+        }
+    }
+    return array();
 }
 
 function check_rate_limit(array $submission, array $settings) {

@@ -28,6 +28,7 @@ function inspect(array $submission) {
                 }
             } catch (\Throwable $e) {
                 error_log('Spam Killer: module ' . $id . ' failed: ' . $e->getMessage());
+                record_error($id, $e->getMessage());
             }
         }
     }
@@ -47,4 +48,11 @@ function screen(array $submission) {
     }
     do_action('spam_killer_quarantined', $id, $submission, $reasons);
     return $id;
+}
+
+/** Keeps the last 20 module errors for the Settings page. */
+function record_error($module, $message) {
+    $errors = (array) get_option('spam_killer_errors', array());
+    array_unshift($errors, array('module' => $module, 'message' => substr($message, 0, 500), 'time' => time()));
+    update_option('spam_killer_errors', array_slice($errors, 0, 20), false);
 }

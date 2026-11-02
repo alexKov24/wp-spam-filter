@@ -15,11 +15,36 @@ defined('ABSPATH') || exit;
 
 const ROLES = array('name', 'email', 'phone', 'message');
 const HONEYPOT = 'sk_hp';
+const TIME_FIELD = 'sk_ts';
 
 function client_ip() {
-    // REMOTE_ADDR only: forwarded headers are spoofable unless a trusted proxy sets them.
-    $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '';
+    // Headers are spoofable, so they are only read when the admin says a proxy sets them.
+    $source = settings()['ip_source'];
+    $ip = '';
+    if ($source === 'cloudflare') {
+        $ip = (string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '');
+    } elseif ($source === 'forwarded') {
+        $ip = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''))[0]);
+    }
+    if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+        $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    }
     return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '';
+}
+
+/** Signed render-time token for the time trap: "time.signature". */
+function time_token($time = null) {
+    $time = $time ?? time();
+    return $time . '.' . substr(hash_hmac('sha256', (string) $time, wp_salt('nonce')), 0, 16);
+}
+
+/** The form's render time if the posted token is valid, else null. */
+function posted_render_time() {
+    $token = isset($_POST[TIME_FIELD]) && is_string($_POST[TIME_FIELD]) ? wp_unslash($_POST[TIME_FIELD]) : '';
+    if (!preg_match('/^(\d{9,11})\.[0-9a-f]{16}$/D', $token, $m)) {
+        return null;
+    }
+    return hash_equals(time_token((int) $m[1]), $token) ? (int) $m[1] : null;
 }
 
 function make_submission($source, $form_id, $form_title, array $fields, $page_url = '') {
@@ -32,6 +57,8 @@ function make_submission($source, $form_id, $form_title, array $fields, $page_ur
         'page_url' => (string) $page_url,
         // null = the form didn't include our honeypot (e.g. a cached page or a direct POST).
         'honeypot' => isset($_POST[HONEYPOT]) && is_string($_POST[HONEYPOT]) ? wp_unslash($_POST[HONEYPOT]) : null,
+        // null = no valid token (cached page, direct POST, or tampered).
+        'rendered_at' => posted_render_time(),
     );
 }
 
