@@ -41,3 +41,6 @@
 .sk-inline-fields legend { margin-bottom: 4px; }
 .sk-defaults { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0; padding: 10px 14px; background: #fff; border: 1px solid #dcdcde; border-left: 4px solid #72aee6; }
 .sk-rules { margin-top: 16px; }
+.sk-sections { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 12px 0 0; }
+.sk-sections a { text-decoration: none; }
+.sk-section { margin-top: 32px; padding-top: 16px; border-top: 1px solid #dcdcde; scroll-margin-top: 40px; }

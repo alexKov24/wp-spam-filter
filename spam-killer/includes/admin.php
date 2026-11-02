@@ -499,65 +499,86 @@ function settings_page() {
         }
         printf('</ul><p><a href="%s">Clear</a></p></div>', esc_url(wp_nonce_url(admin_url('admin-post.php?action=spam_killer_clear_errors'), 'spam_killer_clear_errors')));
     }
+    // Module sections. Modules added by add-ons land in "Other checks".
+    $modules = all_modules();
+    $groups = array(
+        'bots' => array('Bot traps', 'Invisible to visitors. They catch software that fills in forms automatically.', array('honeypot', 'time_trap', 'js_check', 'user_agent')),
+        'volume' => array('Floods and repeats', 'Hold bursts from one visitor and the same text sent from many.', array('rate_limit', 'duplicates')),
+        'content' => array('Content filters', 'Hold submissions by what they say or who sent them.', array('disposable_email', 'wp_blocklist', 'scripts', 'rules')),
+    );
+    $other = array_diff(array_keys($modules), array_merge(...array_column($groups, 2)));
+    if ($other) {
+        $groups['other'] = array('Other checks', '', $other);
+    }
+    $sections = array_map(function ($g) { return $g[0]; }, $groups) + array('visitors' => 'What visitors see', 'storage' => 'Notifications and storage', 'comments' => 'Comments');
+    echo '<ul class="sk-sections">';
+    foreach ($sections as $anchor => $title) {
+        printf('<li><a href="#%s">%s</a></li>', esc_attr($anchor), esc_html($title));
+    }
+    echo '</ul>';
     echo '<form method="post" action="options.php">';
     settings_fields('spam_killer');
-    echo '<h2>Modules</h2><table class="form-table"><tbody>';
-    foreach (all_modules() as $id => $module) {
-        printf('<tr><th>%s</th><td><label><input type="checkbox" name="spam_killer_settings[modules][%s]" value="1"%s> On</label><p class="description">%s</p>',
-            esc_html($module['label']), esc_attr($id), checked(!empty($s['modules'][$id]), true, false), esc_html($module['description']));
-        if ($id === 'rate_limit') {
-            printf('<p class="sk-inline-fields">Allow <input type="number" min="1" max="1000" name="spam_killer_settings[rate_limit_max]" value="%d" class="small-text" aria-label="Maximum submissions"> submissions per form every <input type="number" min="1" max="1440" name="spam_killer_settings[rate_limit_minutes]" value="%d" class="small-text" aria-label="Minutes"> minutes from one IP.</p>', $s['rate_limit_max'], $s['rate_limit_minutes']);
-        }
-        if ($id === 'duplicates') {
-            printf('<p class="sk-inline-fields">Compare with the last <input type="number" min="10" max="500" name="spam_killer_settings[duplicate_count]" value="%d" class="small-text" aria-label="Number of submissions"> submissions; hold at <input type="number" min="50" max="100" name="spam_killer_settings[duplicate_similarity]" value="%d" class="small-text" aria-label="Similarity percent">%% similar or more.</p>', $s['duplicate_count'], $s['duplicate_similarity']);
-        }
-        if ($id === 'time_trap') {
-            printf('<p class="sk-inline-fields">Hold forms sent less than <input type="number" min="1" max="60" name="spam_killer_settings[time_trap_seconds]" value="%d" class="small-text" aria-label="Seconds"> seconds after the page loaded.</p>', $s['time_trap_seconds']);
-        }
-        if ($id === 'rate_limit') {
-            echo '<fieldset class="sk-inline-fields"><legend>Visitor IP comes from:</legend>';
-            foreach (ip_sources() as $key => $label) {
-                printf('<label><input type="radio" name="spam_killer_settings[ip_source]" value="%s"%s> %s</label><br>', esc_attr($key), checked($s['ip_source'], $key, false), esc_html($label));
+    foreach ($groups as $anchor => list($title, $intro, $ids)) {
+        printf('<h2 id="%s" class="sk-section">%s</h2>%s<table class="form-table"><tbody>', esc_attr($anchor), esc_html($title), $intro !== '' ? '<p class="description">' . esc_html($intro) . '</p>' : '');
+        foreach (array_intersect_key($modules, array_flip($ids)) as $id => $module) {
+            printf('<tr><th>%s</th><td><label><input type="checkbox" name="spam_killer_settings[modules][%s]" value="1"%s> On</label><p class="description">%s</p>',
+                esc_html($module['label']), esc_attr($id), checked(!empty($s['modules'][$id]), true, false), esc_html($module['description']));
+            if ($id === 'rate_limit') {
+                printf('<p class="sk-inline-fields">Allow <input type="number" min="1" max="1000" name="spam_killer_settings[rate_limit_max]" value="%d" class="small-text" aria-label="Maximum submissions"> submissions per form every <input type="number" min="1" max="1440" name="spam_killer_settings[rate_limit_minutes]" value="%d" class="small-text" aria-label="Minutes"> minutes from one IP.</p>', $s['rate_limit_max'], $s['rate_limit_minutes']);
             }
-            if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && $s['ip_source'] !== 'cloudflare') {
-                echo '<p class="sk-warn">This site looks like it is behind Cloudflare. Choose Cloudflare, or every visitor will share one IP and the rate limit will hold real people.</p>';
-            } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR']) && $s['ip_source'] === 'remote') {
-                echo '<p class="sk-warn">This site looks like it is behind a proxy. If all submissions show the same IP, choose the proxy option.</p>';
+            if ($id === 'duplicates') {
+                printf('<p class="sk-inline-fields">Compare with the last <input type="number" min="10" max="500" name="spam_killer_settings[duplicate_count]" value="%d" class="small-text" aria-label="Number of submissions"> submissions; hold at <input type="number" min="50" max="100" name="spam_killer_settings[duplicate_similarity]" value="%d" class="small-text" aria-label="Similarity percent">%% similar or more.</p>', $s['duplicate_count'], $s['duplicate_similarity']);
             }
-            echo '</fieldset>';
-        }
-        if ($id === 'wp_blocklist') {
-            $count = count(array_filter(array_map('trim', explode("\n", (string) get_option('disallowed_keys', ''))), 'strlen'));
-            printf('<p class="sk-small">%s <a href="%s">Edit the list</a>.</p>', $count ? sprintf('%d entries.', $count) : 'The list is empty.', esc_url(admin_url('options-discussion.php#disallowed_keys')));
-        }
-        if ($id === 'scripts') {
-            echo '<fieldset class="sk-inline-fields sk-scripts"><legend>Hold messages written mostly in:</legend>';
-            foreach (scripts() as $key => $script) {
-                printf('<label><input type="checkbox" name="spam_killer_settings[blocked_scripts][]" value="%s"%s> %s</label>', esc_attr($key), checked(in_array($key, $s['blocked_scripts'], true), true, false), esc_html($script[0]));
+            if ($id === 'time_trap') {
+                printf('<p class="sk-inline-fields">Hold forms sent less than <input type="number" min="1" max="60" name="spam_killer_settings[time_trap_seconds]" value="%d" class="small-text" aria-label="Seconds"> seconds after the page loaded.</p>', $s['time_trap_seconds']);
             }
-            echo '</fieldset>';
+            if ($id === 'rate_limit') {
+                echo '<fieldset class="sk-inline-fields"><legend>Visitor IP comes from:</legend>';
+                foreach (ip_sources() as $key => $label) {
+                    printf('<label><input type="radio" name="spam_killer_settings[ip_source]" value="%s"%s> %s</label><br>', esc_attr($key), checked($s['ip_source'], $key, false), esc_html($label));
+                }
+                if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && $s['ip_source'] !== 'cloudflare') {
+                    echo '<p class="sk-warn">This site looks like it is behind Cloudflare. Choose Cloudflare, or every visitor will share one IP and the rate limit will hold real people.</p>';
+                } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR']) && $s['ip_source'] === 'remote') {
+                    echo '<p class="sk-warn">This site looks like it is behind a proxy. If all submissions show the same IP, choose the proxy option.</p>';
+                }
+                echo '</fieldset>';
+            }
+            if ($id === 'wp_blocklist') {
+                $count = count(array_filter(array_map('trim', explode("\n", (string) get_option('disallowed_keys', ''))), 'strlen'));
+                printf('<p class="sk-small">%s <a href="%s">Edit the list</a>.</p>', $count ? sprintf('%d entries.', $count) : 'The list is empty.', esc_url(admin_url('options-discussion.php#disallowed_keys')));
+            }
+            if ($id === 'scripts') {
+                echo '<fieldset class="sk-inline-fields sk-scripts"><legend>Hold messages written mostly in:</legend>';
+                foreach (scripts() as $key => $script) {
+                    printf('<label><input type="checkbox" name="spam_killer_settings[blocked_scripts][]" value="%s"%s> %s</label>', esc_attr($key), checked(in_array($key, $s['blocked_scripts'], true), true, false), esc_html($script[0]));
+                }
+                echo '</fieldset>';
+            }
+            if ($id === 'disposable_email') {
+                printf('<details class="sk-domains"%s><summary>Edit the list (%s domains built in)</summary>', ($s['disposable_block'] || $s['disposable_allow']) ? ' open' : '', number_format_i18n(count(disposable_domains())));
+                printf('<p><label for="sk-block">Also block these domains</label><textarea id="sk-block" name="spam_killer_settings[disposable_block]" rows="5" class="large-text code" placeholder="one domain per line">%s</textarea></p>', esc_textarea(implode("\n", $s['disposable_block'])));
+                printf('<p><label for="sk-allow">Never block these domains</label><textarea id="sk-allow" name="spam_killer_settings[disposable_allow]" rows="5" class="large-text code" placeholder="one domain per line">%s</textarea></p>', esc_textarea(implode("\n", $s['disposable_allow'])));
+                echo '<p class="description">Subdomains are included: blocking example.com also blocks mail.example.com. "Never block" wins over the built-in list.</p></details>';
+            }
+            if ($id === 'rules') {
+                printf('<p><a href="%s">Manage rules</a></p>', esc_url(page_url('spam-killer-rules')));
+            }
+            echo '</td></tr>';
         }
-        if ($id === 'disposable_email') {
-            printf('<details class="sk-domains"%s><summary>Edit the list (%s domains built in)</summary>', ($s['disposable_block'] || $s['disposable_allow']) ? ' open' : '', number_format_i18n(count(disposable_domains())));
-            printf('<p><label for="sk-block">Also block these domains</label><textarea id="sk-block" name="spam_killer_settings[disposable_block]" rows="5" class="large-text code" placeholder="one domain per line">%s</textarea></p>', esc_textarea(implode("\n", $s['disposable_block'])));
-            printf('<p><label for="sk-allow">Never block these domains</label><textarea id="sk-allow" name="spam_killer_settings[disposable_allow]" rows="5" class="large-text code" placeholder="one domain per line">%s</textarea></p>', esc_textarea(implode("\n", $s['disposable_allow'])));
-            echo '<p class="description">Subdomains are included: blocking example.com also blocks mail.example.com. "Never block" wins over the built-in list.</p></details>';
-        }
-        if ($id === 'rules') {
-            printf('<p><a href="%s">Manage rules</a></p>', esc_url(page_url('spam-killer-rules')));
-        }
-        echo '</td></tr>';
+        echo '</tbody></table>';
     }
-    echo '</tbody></table><h2>Submissions</h2><table class="form-table"><tbody>';
-    printf('<tr><th>Daily digest</th><td><label><input type="checkbox" name="spam_killer_settings[digest]" value="1"%s> Email %s a list of held submissions once a day</label><p class="description">Sent at about 08:00, only on days something was held, so you never miss a real enquiry.</p></td></tr>', checked($s['digest'], true, false), esc_html(get_option('admin_email')));
-    echo '<tr><th>Visitor sees</th><td><fieldset>';
+    echo '<h2 id="visitors" class="sk-section">What visitors see</h2><table class="form-table"><tbody>';
+    $digest = sprintf('<tr><th>Daily digest</th><td><label><input type="checkbox" name="spam_killer_settings[digest]" value="1"%s> Email %s a list of held submissions once a day</label><p class="description">Sent at about 08:00, only on days something was held, so you never miss a real enquiry.</p></td></tr>', checked($s['digest'], true, false), esc_html(get_option('admin_email')));
+    echo '<tr><th>When a submission is held</th><td><fieldset>';
     foreach (responses() as $key => $label) {
         printf('<label><input type="radio" name="spam_killer_settings[response]" value="%s"%s> %s</label><br>', esc_attr($key), checked($s['response'], $key, false), esc_html($label));
     }
     printf('<p><label for="sk-review">Review message</label><br><input id="sk-review" name="spam_killer_settings[review_message]" value="%s" class="large-text"></p>', esc_attr($s['review_message']));
     echo '<p class="description">Normal success hides the filter from bots. Blocked tells real people their message didn\'t go through, so they can call instead.</p></fieldset></td></tr>';
+    echo '</tbody></table><h2 id="storage" class="sk-section">Notifications and storage</h2><table class="form-table"><tbody>' . $digest;
     printf('<tr><th><label for="sk-expire">Keep submissions for</label></th><td><input id="sk-expire" type="number" min="1" max="365" name="spam_killer_settings[expire_days]" value="%d" class="small-text"> days<p class="description">Log and quarantine entries older than this are deleted automatically once a day.</p></td></tr>', $s['expire_days']);
-    echo '</tbody></table><h2 id="comments">Comments</h2><table class="form-table"><tbody>';
+    echo '</tbody></table><h2 id="comments" class="sk-section">Comments</h2><table class="form-table"><tbody>';
     printf('<tr><th>Rules</th><td><label><input type="checkbox" name="spam_killer_settings[comment_rules]" value="1"%s> Apply the <a href="%s">rules</a> to blog comments too</label><p class="description">A matching comment goes to Comments → Spam. Rules limited to specific forms are skipped. Comments from moderators are never checked.</p></td></tr>', checked($s['comment_rules'], true, false), esc_url(page_url('spam-killer-rules')));
     printf('<tr><th>Turn off comments</th><td><label><input type="checkbox" name="spam_killer_settings[disable_comments]" value="1"%s> Close comments and pingbacks on the whole site</label><p class="description">Also hides existing comments and the Comments menu. Nothing is deleted: untick to bring them back.</p></td></tr>', checked($s['disable_comments'], true, false));
     echo '</tbody></table>';
