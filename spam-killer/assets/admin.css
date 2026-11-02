@@ -1,0 +1,19 @@
+.sk-inline { display: inline; }
+.sk-card { background: #fff; border: 1px solid #c3c4c7; padding: 4px 16px 12px; margin: 16px 0; max-width: 900px; }
+.sk-card table th { width: 180px; }
+.sk-reasons { list-style: disc; padding-left: 20px; }
+.sk-meta { color: #646970; margin-top: 12px; }
+.sk-actions .button { margin-right: 6px; }
+.sk-released { color: #00a32a; font-weight: 600; margin-right: 10px; }
+.sk-excerpt { color: #50575e; margin-top: 2px; }
+.column-reasons { width: 32%; }
+.column-form { width: 16%; }
+.column-created_at { width: 12%; }
+.sk-condition { display: flex; gap: 6px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+.sk-mode { margin-bottom: 4px; }
+.sk-rules .sk-disabled td { opacity: .55; }
+.sk-tag { background: #dcdcde; border-radius: 3px; padding: 0 6px; font-size: 11px; margin-left: 4px; }
+.sk-row-actions { white-space: nowrap; text-align: right; }
+.sk-row-actions .button-link { margin-left: 10px; }
+.sk-row-actions form:last-child .button-link { color: #b32d2e; }
+.sk-inline-fields { margin-top: 8px; }
