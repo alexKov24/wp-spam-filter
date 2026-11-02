@@ -25,12 +25,16 @@ class Quarantine_Table extends \WP_List_Table {
         $columns = array('cb' => '<input type="checkbox">', 'submission' => 'Submission');
         if ($this->page === 'spam-killer-log') {
             $columns['outcome'] = 'Outcome';
+            $columns['mail'] = 'Email';
         }
         return $columns + array('reasons' => 'Why held', 'form' => 'Form', 'created_at' => 'Received');
     }
 
     protected function get_bulk_actions() {
-        return $this->status === 'quarantined' ? array('release' => 'Not spam — email to admin', 'delete' => 'Delete') : array('delete' => 'Delete');
+        if ($this->status === 'quarantined') {
+            return array('release' => 'Not spam — email to admin', 'delete' => 'Delete');
+        }
+        return $this->status === 'passed' ? array('resend' => 'Email to admin again', 'delete' => 'Delete') : array('delete' => 'Delete');
     }
 
     public function current_action() {
@@ -75,6 +79,10 @@ class Quarantine_Table extends \WP_List_Table {
     protected function column_outcome($item) {
         $labels = array('passed' => 'Passed', 'quarantined' => 'Held', 'released' => 'Released');
         return sprintf('<span class="sk-outcome sk-o-%s">%s</span>', esc_attr($item['status']), esc_html($labels[$item['status']] ?? $item['status']));
+    }
+
+    protected function column_mail($item) {
+        return mail_label($item);
     }
 
     protected function column_reasons($item) {

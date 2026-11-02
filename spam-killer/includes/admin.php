@@ -45,6 +45,8 @@ function notice() {
         'rule_saved' => array('success', 'Rule saved.'),
         'rule_deleted' => array('success', 'Rule deleted.'),
         'form_saved' => array('success', 'Form protection saved.'),
+        'resent' => array('success', 'Sent to %s.'),
+        'resent_failed' => array('warning', 'The email to %s could not be sent. Check your site\'s mail setup (an SMTP plugin usually fixes this).'),
     );
     $key = isset($_GET['sk_notice']) ? sanitize_key($_GET['sk_notice']) : '';
     if (isset($messages[$key])) {
@@ -58,6 +60,41 @@ function notice() {
 function module_label($id) {
     $modules = all_modules();
     return $modules[$id]['label'] ?? $id;
+}
+
+/** "Sent" / "Failed: reason" / "No email" for the log and item page. */
+function mail_label(array $item) {
+    switch ($item['mail_status']) {
+        case 'sent':
+            return '<span class="sk-mail-sent">Sent</span>';
+        case 'failed':
+            return '<span class="sk-mail-failed" title="' . esc_attr((string) $item['mail_error']) . '">Failed</span>' . ($item['mail_error'] ? ' <span class="sk-small">' . esc_html(wp_trim_words($item['mail_error'], 12)) . '</span>' : '');
+        case 'none':
+            return '<span class="sk-muted">No email sent by the form</span>';
+    }
+    return '<span class="sk-muted">—</span>';
+}
+
+/** Rule draft from a stored submission: its email, and every link domain in it. */
+function rule_from_submission($id) {
+    $item = get_item($id);
+    if (!$item) {
+        return null;
+    }
+    $conditions = array();
+    $email = role_field($item, 'email');
+    if ($email && field_text($email['value']) !== '') {
+        $conditions[] = array('field' => 'email', 'operator' => 'equals', 'value' => field_text($email['value']));
+    }
+    $text = implode("\n", array_map(function ($f) { return field_text($f['value']); }, $item['fields']));
+    foreach (array_slice(link_domains($text), 0, 10) as $domain) {
+        $conditions[] = array('field' => 'link_domain', 'operator' => 'equals', 'value' => $domain);
+    }
+    if (!$conditions) {
+        $message = role_field($item, 'message');
+        $conditions[] = array('field' => 'message', 'operator' => 'contains', 'value' => $message ? wp_html_excerpt(field_text($message['value']), 80) : '');
+    }
+    return array('name' => 'From submission #' . $id, 'mode' => 'any', 'forms' => '', 'enabled' => true, 'conditions' => $conditions);
 }
 
 function summary(array $fields) {
@@ -193,15 +230,22 @@ function item_page($id, $back = 'spam-killer') {
     if ($item['page_url'] !== '') {
         printf(' · Page: <a href="%s" target="_blank" rel="noopener">%s</a>', esc_url($item['page_url']), esc_html($item['page_url']));
     }
-    echo '</p></div>';
+    echo '</p>';
+    if ($item['mail_status'] !== '') {
+        printf('<p class="sk-meta">Notification email: %s</p>', mail_label($item));
+    }
+    echo '</div>';
     printf('<form method="post" action="%s" class="sk-actions">', esc_url(admin_url('admin-post.php')));
     wp_nonce_field('spam_killer_quarantine', 'sk_nonce');
     printf('<input type="hidden" name="action" value="spam_killer_quarantine"><input type="hidden" name="ids[]" value="%d"><input type="hidden" name="back" value="%s">', $id, esc_attr($back));
     if ($item['status'] === 'quarantined') {
         printf('<button class="button button-primary" name="op" value="release">Not spam — email it to %s</button> ', esc_html(get_option('admin_email')));
+    } elseif ($item['status'] === 'passed') {
+        printf('<button class="button%s" name="op" value="resend">Email it to %s</button> ', $item['mail_status'] === 'sent' ? '' : ' button-primary', esc_html(get_option('admin_email')));
     } elseif ($item['status'] === 'released') {
         printf('<span class="sk-released">Released %s</span> ', esc_html(get_date_from_gmt($item['released_at'], 'Y-m-d H:i')));
     }
+    printf('<a class="button" href="%s">Create rule from this</a> ', esc_url(page_url('spam-killer-rules', array('edit' => 0, 'from' => $id))));
     echo '<button class="button" name="op" value="delete">Delete</button></form></div>';
 }
 
@@ -223,6 +267,12 @@ function handle_quarantine_action() {
             $ok = $ok && $result === true;
         }
         $notice = $ok ? 'released' : 'released_failed';
+    } elseif ($op === 'resend') {
+        $ok = true;
+        foreach ($ids as $id) {
+            $ok = resend($id) === true && $ok;
+        }
+        $notice = $ok ? 'resent' : 'resent_failed';
     } elseif ($op === 'delete') {
         delete_items($ids);
         $notice = 'deleted';
@@ -287,6 +337,9 @@ function rule_button($id, $op, $label, $confirm = '') {
 function rule_form($id) {
     $rule = $id ? get_rule($id) : null;
     $draft = get_transient('spam_killer_rule_draft_' . get_current_user_id());
+    if (!is_array($draft) && !empty($_GET['from'])) {
+        $draft = rule_from_submission(absint($_GET['from']));
+    }
     if (is_array($draft)) {
         delete_transient('spam_killer_rule_draft_' . get_current_user_id());
         $rule = $draft;

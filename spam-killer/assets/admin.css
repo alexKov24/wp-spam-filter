@@ -30,3 +30,6 @@
 .sk-search, .sk-log-filters { margin: 12px 0; }
 .sk-log-filters { clear: both; padding-top: 8px; }
 .sk-forms td { vertical-align: top; }
+.sk-mail-sent { color: #00701a; }
+.sk-mail-failed { color: #b32d2e; font-weight: 600; }
+.column-mail { width: 110px; }

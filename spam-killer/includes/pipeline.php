@@ -42,6 +42,7 @@ function screen(array $submission) {
     $reasons = inspect($submission);
     $id = log_submission($submission, $reasons);
     if (!$reasons) {
+        track_mail($id);
         return 0;
     }
     do_action('spam_killer_quarantined', $id, $submission, $reasons);

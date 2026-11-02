@@ -14,7 +14,7 @@ namespace SpamKiller;
 defined('ABSPATH') || exit;
 
 const VERSION = '0.1.0';
-const SCHEMA = '2';
+const SCHEMA = '3';
 const FILE = __FILE__;
 
 require_once __DIR__ . '/includes/settings.php';
@@ -62,6 +62,8 @@ function install() {
         status varchar(20) NOT NULL DEFAULT 'quarantined',
         created_at datetime NOT NULL,
         released_at datetime DEFAULT NULL,
+        mail_status varchar(10) NOT NULL DEFAULT '',
+        mail_error text NULL,
         PRIMARY KEY  (id),
         KEY status_created (status,created_at)
     ) $charset;");

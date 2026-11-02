@@ -73,22 +73,14 @@ function query_items($status, array $filters, $limit, $offset) {
     return $rows;
 }
 
-/**
- * Marks a submission legitimate and emails it to the site admin.
- * Returns true if the email was handed to wp_mail, false if sending failed, WP_Error if not found.
- */
-function release($id) {
-    global $wpdb;
-    $item = get_item($id);
-    if (!$item || $item['status'] !== 'quarantined') {
-        return new \WP_Error('not_found', 'Submission not found in quarantine.');
-    }
+/** Emails a stored submission to the site admin (Reply-To = the sender). Returns wp_mail's result. */
+function email_to_admin(array $item, $intro) {
     $lines = array();
     foreach ($item['fields'] as $field) {
         $lines[] = ($field['label'] !== '' ? $field['label'] : $field['id']) . ': ' . field_text($field['value']);
     }
     $title = $item['form_title'] !== '' ? $item['form_title'] : $item['form_id'];
-    $body = "A form submission was released from Spam Killer quarantine.\n\n"
+    $body = $intro . "\n\n"
         . 'Form: ' . $title . "\n"
         . 'Received: ' . get_date_from_gmt($item['created_at']) . "\n"
         . ($item['page_url'] !== '' ? 'Page: ' . $item['page_url'] . "\n" : '')
@@ -98,10 +90,64 @@ function release($id) {
     if ($reply && is_email(field_text($reply['value']))) {
         $headers[] = 'Reply-To: ' . field_text($reply['value']);
     }
-    $sent = wp_mail(get_option('admin_email'), '[' . wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) . '] Released submission: ' . $title, $body, $headers);
-    $wpdb->update(table('submissions'), array('status' => 'released', 'released_at' => gmdate('Y-m-d H:i:s')), array('id' => $id));
-    return (bool) $sent;
+    $subject = '[' . wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) . '] ' . $title;
+    return (bool) wp_mail(get_option('admin_email'), $subject, $body, $headers);
 }
+
+/**
+ * Marks a held submission legitimate and emails it to the site admin.
+ * Returns true if the email was handed to wp_mail, false if sending failed, WP_Error if not found.
+ */
+function release($id) {
+    global $wpdb;
+    $item = get_item($id);
+    if (!$item || $item['status'] !== 'quarantined') {
+        return new \WP_Error('not_found', 'Submission not found in quarantine.');
+    }
+    $sent = email_to_admin($item, 'A form submission was released from Spam Killer quarantine.');
+    $wpdb->update(table('submissions'), array('status' => 'released', 'released_at' => gmdate('Y-m-d H:i:s'), 'mail_status' => $sent ? 'sent' : 'failed'), array('id' => $id));
+    return $sent;
+}
+
+/** Re-sends a passed submission to the admin, e.g. after its notification email failed. */
+function resend($id) {
+    global $wpdb;
+    $item = get_item($id);
+    if (!$item || $item['status'] === 'quarantined') {
+        return new \WP_Error('not_found', 'Submission not found.');
+    }
+    $sent = email_to_admin($item, 'Re-sent from the Spam Killer log.');
+    $wpdb->update(table('submissions'), array('mail_status' => $sent ? 'sent' : 'failed', 'mail_error' => $sent ? null : 'Re-send failed.'), array('id' => $id));
+    return $sent;
+}
+
+/*
+ * Notification email status for passed submissions. screen() starts tracking;
+ * every wp_mail call in the rest of the request (the form's own emails) is counted.
+ */
+function track_mail($id) {
+    $GLOBALS['spam_killer_mail'] = array('id' => $id, 'attempts' => 0, 'errors' => array());
+}
+add_filter('wp_mail', function ($atts) {
+    if (isset($GLOBALS['spam_killer_mail'])) {
+        $GLOBALS['spam_killer_mail']['attempts']++;
+    }
+    return $atts;
+});
+add_action('wp_mail_failed', function ($error) {
+    if (isset($GLOBALS['spam_killer_mail'])) {
+        $GLOBALS['spam_killer_mail']['errors'][] = $error->get_error_message();
+    }
+});
+add_action('shutdown', function () {
+    global $wpdb;
+    $mail = $GLOBALS['spam_killer_mail'] ?? null;
+    if (!$mail) {
+        return;
+    }
+    $status = $mail['errors'] ? 'failed' : ($mail['attempts'] ? 'sent' : 'none');
+    $wpdb->update(table('submissions'), array('mail_status' => $status, 'mail_error' => $mail['errors'] ? implode(' | ', array_unique($mail['errors'])) : null), array('id' => $mail['id']));
+});
 
 function delete_items(array $ids) {
     global $wpdb;
