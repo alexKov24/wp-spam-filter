@@ -18,7 +18,10 @@ Every submission is normalized (fields, form, IP, page), run through the enabled
 |---|---|
 | Honeypot — hidden `sk_hp` field injected into CF7/Elementor forms; missing field (cached page) is not spam | on |
 | Time trap — signed render-time token `sk_ts`; held if sent faster than N seconds (default 3) | on |
+| JavaScript check — hidden `sk_js` field filled by a footer script (token only in the script); empty = JS never ran; missing field (cached page) is not spam | on |
+| Bot user agents — empty user agent, or curl / python / Go / Java / headless browsers / Puppeteer / Playwright… | on |
 | Rate limit — N submissions per form per IP per window (default 5 / 10 min); IP from REMOTE_ADDR, Cloudflare or X-Forwarded-For (setting) | on |
+| Duplicate messages — message ≥90% similar (`similar_text`, first 500 chars) to one of the last 100 submissions from another IP; same-IP repeats are skipped; both numbers editable | on |
 | Disposable email — [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains) (CC0, bundled) + editable also-block / never-block lists | on |
 | WordPress disallowed words — Settings → Discussion → Disallowed Comment Keys, matched against every field and the IP | on |
 | Language filter — hold text that is ≥50% letters of a chosen writing system (Cyrillic, Han, Arabic…) | off |

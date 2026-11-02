@@ -508,6 +508,9 @@ function settings_page() {
         if ($id === 'rate_limit') {
             printf('<p class="sk-inline-fields">Allow <input type="number" min="1" max="1000" name="spam_killer_settings[rate_limit_max]" value="%d" class="small-text" aria-label="Maximum submissions"> submissions per form every <input type="number" min="1" max="1440" name="spam_killer_settings[rate_limit_minutes]" value="%d" class="small-text" aria-label="Minutes"> minutes from one IP.</p>', $s['rate_limit_max'], $s['rate_limit_minutes']);
         }
+        if ($id === 'duplicates') {
+            printf('<p class="sk-inline-fields">Compare with the last <input type="number" min="10" max="500" name="spam_killer_settings[duplicate_count]" value="%d" class="small-text" aria-label="Number of submissions"> submissions; hold at <input type="number" min="50" max="100" name="spam_killer_settings[duplicate_similarity]" value="%d" class="small-text" aria-label="Similarity percent">%% similar or more.</p>', $s['duplicate_count'], $s['duplicate_similarity']);
+        }
         if ($id === 'time_trap') {
             printf('<p class="sk-inline-fields">Hold forms sent less than <input type="number" min="1" max="60" name="spam_killer_settings[time_trap_seconds]" value="%d" class="small-text" aria-label="Seconds"> seconds after the page loaded.</p>', $s['time_trap_seconds']);
         }

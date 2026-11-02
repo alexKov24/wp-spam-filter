@@ -23,8 +23,15 @@ function sub($fields, $form = '7', $source = 'cf7') {
 global $wpdb;
 $wpdb->query('DELETE FROM ' . table('rules'));
 $wpdb->query('DELETE FROM ' . table('submissions'));
+// Rate-limit counters from earlier runs.
+$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '%transient%spam_killer_rl_%'");
 update_option('spam_killer_settings', array());
 $_SERVER['REMOTE_ADDR'] = '203.0.113.' . wp_rand(1, 250);
+$_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 (Macintosh) Firefox/140.0';
+// Most tests resend the same text from new IPs; the duplicate check is tested on its own below.
+$GLOBALS['sk_dupes'] = false;
+function sk_no_dupes($m) { return $GLOBALS['sk_dupes'] ? $m : array_diff_key($m, array('duplicates' => 1)); }
+add_filter('spam_killer_modules', 'sk_no_dupes');
 
 // Normalization and parsing.
 check('normalize strips zero-width chars and case', normalize("  B\u{200B}TC\n  Offer ") === 'btc offer');
@@ -83,6 +90,7 @@ check('remote module runs when local is clean', $remote_calls === 1);
 inspect($s);
 check('remote module skipped when local matched', $remote_calls === 1);
 remove_all_filters('spam_killer_modules');
+add_filter('spam_killer_modules', 'sk_no_dupes');
 update_option('spam_killer_settings', array());
 
 // Rate limit: default 5 per 10 minutes.
@@ -152,8 +160,8 @@ check('missing honeypot (cached page) passes', inspect(make_submission('cf7', 'h
 check('honeypot added to CF7 markup', strpos(apply_filters('wpcf7_form_elements', '<p>x</p>'), 'name="sk_hp"') !== false);
 class Fake_Widget { public function get_name() { return 'form'; } }
 check('honeypot added inside Elementor form', preg_match('~name="sk_hp".*</form>~s', apply_filters('elementor/widget/render_content', '<form><input></form>', new Fake_Widget())) === 1);
-update_option('spam_killer_settings', array('modules' => array('honeypot' => false, 'time_trap' => false)));
-check('honeypot and time trap off add nothing', apply_filters('wpcf7_form_elements', '<p>x</p>') === '<p>x</p>');
+update_option('spam_killer_settings', array('modules' => array('honeypot' => false, 'time_trap' => false, 'js_check' => false)));
+check('honeypot, time trap and JS check off add nothing', apply_filters('wpcf7_form_elements', '<p>x</p>') === '<p>x</p>');
 update_option('spam_killer_settings', array());
 
 // Editable disposable list.
@@ -213,7 +221,7 @@ check('time token is added to forms', strpos(apply_filters('wpcf7_form_elements'
 update_option('disallowed_keys', "cheap-pills\n198.51.100.9");
 check('WP disallowed word is caught', array_column(inspect(make_submission('cf7', 'bl', 'BL', array(array('id' => 'm', 'label' => '', 'type' => 'textarea', 'value' => 'Buy CHEAP-PILLS now')))), 'module') === array('wp_blocklist'));
 $_SERVER['REMOTE_ADDR'] = '198.51.100.9';
-check('WP disallowed IP is caught', array_column(inspect(make_submission('cf7', 'bl2', 'BL', $clean['fields'])), 'module') === array('wp_blocklist'));
+check('WP disallowed IP is caught', array_column(inspect(make_submission('cf7', 'bl2' . wp_rand(), 'BL', $clean['fields'])), 'module') === array('wp_blocklist'));
 $_SERVER['REMOTE_ADDR'] = '203.0.113.5';
 update_option('disallowed_keys', '');
 
@@ -243,6 +251,7 @@ update_option('spam_killer_settings', array('modules' => array('broken' => true)
 inspect($clean);
 check('module error shown in settings list', (get_option('spam_killer_errors')[0]['message'] ?? '') === 'boom');
 remove_all_filters('spam_killer_modules');
+add_filter('spam_killer_modules', 'sk_no_dupes');
 update_option('spam_killer_settings', array());
 delete_option('spam_killer_errors');
 
@@ -291,5 +300,46 @@ check('elementor blocked mode returns error', $died && $json['success'] === fals
 check('unknown response falls back to success', SpamKiller\sanitize_settings(array('response' => 'x'))['response'] === 'success');
 check('empty review message falls back to default', SpamKiller\sanitize_settings(array('review_message' => ' '))['review_message'] === SpamKiller\defaults()['review_message']);
 update_option('spam_killer_settings', array());
+
+// JavaScript check.
+$_SERVER['REMOTE_ADDR'] = '203.0.113.' . wp_rand(1, 250);
+check('JS field is added to forms', strpos(apply_filters('wpcf7_form_elements', ''), 'name="sk_js" value=""') !== false);
+$mods = function ($s) { return array_column(inspect($s), 'module'); };
+$_POST['sk_js'] = '';
+check('JS field left empty is caught', $mods(make_submission('cf7', 'js1', 'J', $clean['fields'])) === array('js_check'));
+$_POST['sk_js'] = SpamKiller\js_token();
+check('JS field filled by the script passes', $mods(make_submission('cf7', 'js2', 'J', $clean['fields'])) === array());
+unset($_POST['sk_js']);
+check('no JS field (cached page) passes', $mods(make_submission('cf7', 'js3', 'J', $clean['fields'])) === array());
+ob_start(); SpamKiller\js_script(); $script = ob_get_clean();
+check('page script carries the token', strpos($script, SpamKiller\js_token()) !== false);
+
+// Bot user agents.
+$ua = $_SERVER['HTTP_USER_AGENT'];
+foreach (array('' => true, 'curl/8.4.0' => true, 'python-requests/2.31' => true, 'Mozilla/5.0 HeadlessChrome/120' => true, 'Mozilla/5.0 (iPhone) Safari/604.1' => false) as $agent => $bot) {
+    $_SERVER['HTTP_USER_AGENT'] = $agent;
+    check(sprintf('user agent "%s" %s', $agent, $bot ? 'is caught' : 'passes'), $mods(make_submission('cf7', 'ua' . wp_rand(), 'U', $clean['fields'])) === ($bot ? array('user_agent') : array()));
+}
+$_SERVER['HTTP_USER_AGENT'] = $ua;
+
+// Duplicate messages.
+$GLOBALS['sk_dupes'] = true;
+$wpdb->query('DELETE FROM ' . table('submissions'));
+$pitch = function ($text) { return make_submission('cf7', 'dup', 'D', array(array('id' => 'your-message', 'label' => '', 'type' => 'textarea', 'value' => $text))); };
+$_SERVER['REMOTE_ADDR'] = '192.0.2.1';
+screen($pitch('We can grow your Instagram by 10,000 real followers this month, reply YES.'));
+check('same IP repeating itself is not a duplicate', $mods($pitch('We can grow your Instagram by 10,000 real followers this month, reply YES.')) === array());
+$_SERVER['REMOTE_ADDR'] = '192.0.2.2';
+check('near-copy from another IP is caught', $mods($pitch('We can grow your Instagram by 20,000 real followers this week, reply YES!')) === array('duplicates'));
+check('different text passes', $mods($pitch('Hi, do you have a table for four on Friday evening at 8?')) === array());
+screen($pitch('Hi'));
+$_SERVER['REMOTE_ADDR'] = '192.0.2.3';
+check('short texts are never duplicates', $mods($pitch('Hi')) === array());
+update_option('spam_killer_settings', array('duplicate_count' => 10));
+for ($i = 0; $i < 10; $i++) { $_SERVER['REMOTE_ADDR'] = '192.0.2.' . (10 + $i); screen($pitch('Filler message number ' . $i . ' about something else entirely.')); }
+$_SERVER['REMOTE_ADDR'] = '192.0.2.99';
+check('only the last N submissions are compared', $mods($pitch('We can grow your Instagram by 10,000 real followers this month, reply YES.')) === array());
+update_option('spam_killer_settings', array());
+$wpdb->query('DELETE FROM ' . table('submissions'));
 
 echo $GLOBALS['sk_failures'] ? "\n{$GLOBALS['sk_failures']} FAILED\n" : "\nAll passed\n";

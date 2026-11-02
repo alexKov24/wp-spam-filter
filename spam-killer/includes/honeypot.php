@@ -33,7 +33,18 @@ function hidden_fields($source, $form_id) {
     if (module_on('time_trap', $source, (string) $form_id)) {
         $html .= '<input type="hidden" name="' . esc_attr(TIME_FIELD) . '" value="' . esc_attr(time_token()) . '">';
     }
+    if (module_on('js_check', $source, (string) $form_id)) {
+        $html .= '<input type="hidden" name="' . esc_attr(JS_FIELD) . '" value="">';
+        if (!has_action('wp_footer', __NAMESPACE__ . '\\js_script')) {
+            add_action('wp_footer', __NAMESPACE__ . '\\js_script', 99);
+        }
+    }
     return $html;
+}
+
+/** Fills the JS field on load and again just before any form is sent. */
+function js_script() {
+    printf('<script>(function(){var v=%s;function f(){document.querySelectorAll(\'input[name="%s"]\').forEach(function(i){i.value=v;});}f();document.addEventListener("DOMContentLoaded",f);document.addEventListener("submit",f,true);document.addEventListener("click",f,true);})();</script>', wp_json_encode(js_token()), JS_FIELD);
 }
 
 function honeypot_html() {

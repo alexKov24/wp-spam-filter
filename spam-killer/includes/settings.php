@@ -6,13 +6,15 @@ defined('ABSPATH') || exit;
 
 function defaults() {
     return array(
-        'modules' => array('honeypot' => true, 'time_trap' => true, 'rate_limit' => true, 'disposable_email' => true, 'wp_blocklist' => true, 'scripts' => false, 'rules' => true),
+        'modules' => array('honeypot' => true, 'time_trap' => true, 'rate_limit' => true, 'disposable_email' => true, 'wp_blocklist' => true, 'scripts' => false, 'rules' => true, 'js_check' => true, 'user_agent' => true, 'duplicates' => true),
         'time_trap_seconds' => 3,
         'blocked_scripts' => array(),
         'ip_source' => 'remote',
         'digest' => true,
         'comment_rules' => false,
         'disable_comments' => false,
+        'duplicate_count' => 100,
+        'duplicate_similarity' => 90,
         'rate_limit_max' => 5,
         'rate_limit_minutes' => 10,
         'expire_days' => 30,
@@ -86,6 +88,8 @@ function sanitize_settings($input) {
     $out['expire_days'] = max(1, min(365, absint($input['expire_days'] ?? 30)));
     $out['time_trap_seconds'] = max(1, min(60, absint($input['time_trap_seconds'] ?? 3)));
     $out['blocked_scripts'] = array_values(array_intersect(array_keys(scripts()), array_map('strval', (array) ($input['blocked_scripts'] ?? array()))));
+    $out['duplicate_count'] = max(10, min(500, absint($input['duplicate_count'] ?? 100)));
+    $out['duplicate_similarity'] = max(50, min(100, absint($input['duplicate_similarity'] ?? 90)));
     $out['digest'] = !empty($input['digest']);
     $out['comment_rules'] = !empty($input['comment_rules']);
     $out['disable_comments'] = !empty($input['disable_comments']);

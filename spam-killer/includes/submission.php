@@ -16,6 +16,12 @@ defined('ABSPATH') || exit;
 const ROLES = array('name', 'email', 'phone', 'message');
 const HONEYPOT = 'sk_hp';
 const TIME_FIELD = 'sk_ts';
+const JS_FIELD = 'sk_js';
+
+/** The value the page script writes into the JS field. Lives only in the script, not in the form HTML. */
+function js_token() {
+    return substr(wp_hash('spam_killer_js'), 0, 12);
+}
 
 function client_ip() {
     // Headers are spoofable, so they are only read when the admin says a proxy sets them.
@@ -59,6 +65,9 @@ function make_submission($source, $form_id, $form_title, array $fields, $page_ur
         'honeypot' => isset($_POST[HONEYPOT]) && is_string($_POST[HONEYPOT]) ? wp_unslash($_POST[HONEYPOT]) : null,
         // null = no valid token (cached page, direct POST, or tampered).
         'rendered_at' => posted_render_time(),
+        // null = the form didn't include our JS field; '' = it did, but no script ran.
+        'js' => isset($_POST[JS_FIELD]) && is_string($_POST[JS_FIELD]) ? wp_unslash($_POST[JS_FIELD]) : null,
+        'user_agent' => substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 500),
     );
 }
 
