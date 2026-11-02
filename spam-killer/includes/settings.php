@@ -11,6 +11,8 @@ function defaults() {
         'blocked_scripts' => array(),
         'ip_source' => 'remote',
         'digest' => true,
+        'comment_rules' => false,
+        'disable_comments' => false,
         'rate_limit_max' => 5,
         'rate_limit_minutes' => 10,
         'expire_days' => 30,
@@ -85,6 +87,8 @@ function sanitize_settings($input) {
     $out['time_trap_seconds'] = max(1, min(60, absint($input['time_trap_seconds'] ?? 3)));
     $out['blocked_scripts'] = array_values(array_intersect(array_keys(scripts()), array_map('strval', (array) ($input['blocked_scripts'] ?? array()))));
     $out['digest'] = !empty($input['digest']);
+    $out['comment_rules'] = !empty($input['comment_rules']);
+    $out['disable_comments'] = !empty($input['disable_comments']);
     $out['ip_source'] = isset(ip_sources()[$input['ip_source'] ?? '']) ? $input['ip_source'] : 'remote';
     $out['disposable_block'] = domain_list($input['disposable_block'] ?? '');
     $out['disposable_allow'] = domain_list($input['disposable_allow'] ?? '');

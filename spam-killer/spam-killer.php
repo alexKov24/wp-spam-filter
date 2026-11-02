@@ -27,6 +27,7 @@ require_once __DIR__ . '/includes/cf7.php';
 require_once __DIR__ . '/includes/elementor.php';
 require_once __DIR__ . '/includes/honeypot.php';
 require_once __DIR__ . '/includes/forms.php';
+require_once __DIR__ . '/includes/comments.php';
 require_once __DIR__ . '/includes/extras.php';
 require_once __DIR__ . '/includes/admin.php';
 

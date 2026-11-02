@@ -63,6 +63,11 @@ function forms_page() {
     }
     $stats = form_stats();
     $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
+    $sources = array_unique(array_column($forms, 'source'));
+    $source = isset($_GET['source']) && in_array($_GET['source'], $sources, true) ? $_GET['source'] : '';
+    if ($source !== '') {
+        $forms = array_values(array_filter($forms, function ($f) use ($source) { return $f['source'] === $source; }));
+    }
     if ($search !== '') {
         $forms = array_values(array_filter($forms, function ($f) use ($search) {
             $text = implode(' ', array_merge(array($f['name'], $f['form_id'], $f['source_title']), array_map('get_the_title', array_merge($f['pages'], $f['templates']))));
@@ -75,7 +80,17 @@ function forms_page() {
     echo '<input type="hidden" name="action" value="spam_killer_rescan"><button class="page-title-action">Rescan</button></form><hr class="wp-header-end">';
     notice();
     echo '<p class="description">Every Contact Form 7 and Elementor Pro form on the site, where it is placed, and how it is protected. Placements come from saved page content; Theme Builder and popup display conditions are not expanded.</p>';
-    printf('<form method="get" class="sk-search"><input type="hidden" name="page" value="spam-killer-forms"><input type="search" name="s" value="%s" placeholder="Search forms or pages…" aria-label="Search forms or pages"> <button class="button">Search</button></form>', esc_attr($search));
+    echo '<form method="get" class="sk-search"><input type="hidden" name="page" value="spam-killer-forms">';
+    if (count($sources) > 1) {
+        echo '<select name="source" aria-label="Form plugin"><option value="">All form plugins</option>';
+        foreach (array('cf7' => 'Contact Form 7', 'elementor' => 'Elementor') as $key => $label) {
+            if (in_array($key, $sources, true)) {
+                printf('<option value="%s"%s>%s</option>', $key, selected($source, $key, false), $label);
+            }
+        }
+        echo '</select> ';
+    }
+    printf('<input type="search" name="s" value="%s" placeholder="Search forms or pages…" aria-label="Search forms or pages"> <button class="button">Filter</button></form>', esc_attr($search));
     if (!$forms) {
         echo '<p>No forms found.</p></div>';
         return;

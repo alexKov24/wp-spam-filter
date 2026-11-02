@@ -29,11 +29,13 @@ Every module can be overridden per form (Spam Killer → Forms → change). Modu
 
 Add-ons register modules through the `spam_killer_modules` filter. Modules marked `remote` (AI) run only when local modules found nothing. A module error never counts as spam.
 
-**Forms** (Spam Killer → Forms): every CF7 and Elementor Pro form, where it is placed (pages, templates; CF7 by ID or hash, shortcode or block), fields, edit/view links, submission counts, per-form protection. Elementor scanning is ported from Elementor Form Finder.
+**Forms** (Spam Killer → Forms): every CF7 and Elementor Pro form, where it is placed (pages, templates; CF7 by ID or hash, shortcode or block), fields, edit/view links, submission counts, per-form protection. Filter by form plugin when both are installed. Elementor scanning is ported from Elementor Form Finder.
 
-**Log** (Spam Killer → Log): every submission with outcome and notification email status (sent / failed with error / none). Filter by form, search, CSV export (UTF-8 BOM, formula-safe). "Email it again" for passed submissions; "Create rule from this" prefills sender email and link domains.
+**Log** (Spam Killer → Log): every submission with outcome and notification email status (sent / failed with error / none). Filter by form, search, optional IP/Page columns (Screen Options), "Edit form" from a submission, CSV export (UTF-8 BOM, formula-safe). "Email it again" for passed submissions; "Create rule from this" prefills sender email and link domains.
 
 **Extras**: WordPress privacy export/erase (Tools → Export/Erase Personal Data, matched by email), daily digest email of held submissions (~08:00, only when something was held; can be turned off), dashboard widget (7-day counts, failed emails, recently held), "Add default rules" to restore deleted defaults, Settings/Log links on the Plugins screen.
+
+**Comments** (Settings → Comments): apply site-wide rules to blog comments (matches → Comments → Spam; moderators skipped), or turn comments off site-wide (closes comments and pingbacks, hides existing comments and the Comments menu; nothing deleted).
 
 **Quarantine inbox** (Spam Killer → Quarantine): view values and reasons, "Not spam" (marks legitimate and emails the submission to the site admin with Reply-To set), delete, bulk actions. Log and quarantine entries are deleted after N days (Settings → Keep submissions for, default 30).
 

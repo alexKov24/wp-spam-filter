@@ -327,13 +327,13 @@ function rules_page() {
     if (!settings()['modules']['rules']) {
         printf('<div class="notice notice-warning inline"><p>The rules module is off. <a href="%s">Turn it on in Settings</a>.</p></div>', esc_url(page_url('spam-killer-settings')));
     }
-    echo '<p class="description">A submission that matches any enabled rule goes to quarantine.</p>';
+    printf('<p class="description">A submission that matches any enabled rule goes to quarantine. Blog comments: %s (<a href="%s">change</a>).</p>', settings()['comment_rules'] ? 'checked too, matches go to Comments → Spam' : 'not checked', esc_url(page_url('spam-killer-settings') . '#comments'));
     $rules = get_rules();
     $missing = array_diff(array_column(default_rules(), 'name'), array_column($rules, 'name'));
     if ($missing) {
         printf('<form method="post" action="%s" class="sk-defaults">', esc_url(admin_url('admin-post.php')));
         wp_nonce_field('spam_killer_rule');
-        printf('<input type="hidden" name="action" value="spam_killer_rule"><input type="hidden" name="op" value="defaults"><button class="button">Add default rules</button> <span class="description">%s</span></form>', esc_html(implode(', ', $missing)));
+        printf('<input type="hidden" name="action" value="spam_killer_rule"><input type="hidden" name="op" value="defaults"><span>Default rules not installed: %s</span> <button class="button">Add default rules</button></form>', esc_html(implode(', ', $missing)));
     }
     if (!$rules) {
         echo '<p>No rules yet. Example: <em>Message contains “1.3426 BTC”</em>, or <em>Link domain equals strictlydigital.net</em>.</p></div>';
@@ -554,6 +554,9 @@ function settings_page() {
     printf('<p><label for="sk-review">Review message</label><br><input id="sk-review" name="spam_killer_settings[review_message]" value="%s" class="large-text"></p>', esc_attr($s['review_message']));
     echo '<p class="description">Normal success hides the filter from bots. Blocked tells real people their message didn\'t go through, so they can call instead.</p></fieldset></td></tr>';
     printf('<tr><th><label for="sk-expire">Keep submissions for</label></th><td><input id="sk-expire" type="number" min="1" max="365" name="spam_killer_settings[expire_days]" value="%d" class="small-text"> days<p class="description">Log and quarantine entries older than this are deleted automatically once a day.</p></td></tr>', $s['expire_days']);
+    echo '</tbody></table><h2 id="comments">Comments</h2><table class="form-table"><tbody>';
+    printf('<tr><th>Rules</th><td><label><input type="checkbox" name="spam_killer_settings[comment_rules]" value="1"%s> Apply the <a href="%s">rules</a> to blog comments too</label><p class="description">A matching comment goes to Comments → Spam. Rules limited to specific forms are skipped. Comments from moderators are never checked.</p></td></tr>', checked($s['comment_rules'], true, false), esc_url(page_url('spam-killer-rules')));
+    printf('<tr><th>Turn off comments</th><td><label><input type="checkbox" name="spam_killer_settings[disable_comments]" value="1"%s> Close comments and pingbacks on the whole site</label><p class="description">Also hides existing comments and the Comments menu. Nothing is deleted: untick to bring them back.</p></td></tr>', checked($s['disable_comments'], true, false));
     echo '</tbody></table>';
     submit_button();
     echo '</form></div>';
