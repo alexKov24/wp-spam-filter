@@ -1,0 +1,46 @@
+.sk-inline { display: inline; }
+.sk-card { background: #fff; border: 1px solid #c3c4c7; padding: 4px 16px 12px; margin: 16px 0; max-width: 900px; }
+.sk-card table th { width: 180px; }
+.sk-reasons { list-style: disc; padding-left: 20px; }
+.sk-meta { color: #646970; margin-top: 12px; }
+.sk-actions .button { margin-right: 6px; }
+.sk-released { color: #00a32a; font-weight: 600; margin-right: 10px; }
+.sk-excerpt { color: #50575e; margin-top: 2px; }
+.column-submission { width: 22%; }
+.column-reasons { width: 22%; }
+.column-form { width: 12%; }
+.column-created_at { width: 120px; }
+.column-ip { width: 110px; }
+.column-page { width: 12%; word-break: break-all; }
+.sk-condition { display: flex; gap: 6px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+.sk-mode { margin-bottom: 4px; }
+.sk-rules .sk-disabled td { opacity: .55; }
+.sk-tag { background: #dcdcde; border-radius: 3px; padding: 0 6px; font-size: 11px; margin-left: 4px; }
+.sk-row-actions { white-space: nowrap; text-align: right; }
+.sk-row-actions .button-link { margin-left: 10px; }
+.sk-row-actions form:last-child .button-link { color: #b32d2e; }
+.sk-inline-fields { margin-top: 8px; }
+.sk-outcome { display: inline-block; border-radius: 3px; padding: 1px 8px; font-size: 12px; font-weight: 600; }
+.sk-o-passed { background: #edfaef; color: #00701a; }
+.sk-o-quarantined { background: #fcf0f1; color: #b32d2e; }
+.sk-o-released { background: #f0f6fc; color: #2271b1; }
+.column-outcome { width: 90px; }
+.sk-domains { margin-top: 10px; max-width: 640px; }
+.sk-domains summary { cursor: pointer; color: #2271b1; }
+.sk-small { font-size: 12px; color: #646970; }
+.sk-muted { color: #8c8f94; }
+.sk-held { color: #b32d2e; }
+.sk-search, .sk-log-filters { margin: 12px 0; }
+.sk-log-filters { clear: both; padding-top: 8px; }
+.sk-forms td { vertical-align: top; }
+.sk-mail-sent { color: #00701a; }
+.sk-mail-failed { color: #b32d2e; font-weight: 600; }
+.column-mail { width: 110px; }
+.sk-warn { color: #b32d2e; font-weight: 600; max-width: 640px; }
+.sk-scripts label { display: inline-block; min-width: 230px; margin: 2px 0; }
+.sk-inline-fields legend { margin-bottom: 4px; }
+.sk-defaults { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0; padding: 10px 14px; background: #fff; border: 1px solid #dcdcde; border-left: 4px solid #72aee6; }
+.sk-rules { margin-top: 16px; }
+.sk-sections { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 12px 0 0; }
+.sk-sections a { text-decoration: none; }
+.sk-section { margin-top: 32px; padding-top: 16px; border-top: 1px solid #dcdcde; scroll-margin-top: 40px; }
