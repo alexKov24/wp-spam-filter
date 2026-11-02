@@ -125,6 +125,16 @@ function all_forms() {
     return array_values($forms);
 }
 
+/** One form from all_forms() by key, or null if it no longer exists. */
+function find_form($key) {
+    foreach (all_forms() as $form) {
+        if ($form['key'] === $key) {
+            return $form;
+        }
+    }
+    return null;
+}
+
 /** Submission counts per form key: array('cf7:4' => array('total' => n, 'quarantined' => n, 'last' => datetime)). */
 function form_stats() {
     global $wpdb;

@@ -6,9 +6,12 @@
 .sk-actions .button { margin-right: 6px; }
 .sk-released { color: #00a32a; font-weight: 600; margin-right: 10px; }
 .sk-excerpt { color: #50575e; margin-top: 2px; }
-.column-reasons { width: 32%; }
-.column-form { width: 16%; }
-.column-created_at { width: 12%; }
+.column-submission { width: 22%; }
+.column-reasons { width: 22%; }
+.column-form { width: 12%; }
+.column-created_at { width: 120px; }
+.column-ip { width: 110px; }
+.column-page { width: 12%; word-break: break-all; }
 .sk-condition { display: flex; gap: 6px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
 .sk-mode { margin-bottom: 4px; }
 .sk-rules .sk-disabled td { opacity: .55; }

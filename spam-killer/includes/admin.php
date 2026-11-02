@@ -36,7 +36,8 @@ function admin_menu() {
     $badge = $count ? ' <span class="awaiting-mod">' . number_format_i18n($count) . '</span>' : '';
     add_menu_page('Spam Killer', 'Spam Killer' . $badge, CAP, 'spam-killer', __NAMESPACE__ . '\\quarantine_page', 'dashicons-shield', 80);
     add_submenu_page('spam-killer', 'Quarantine', 'Quarantine', CAP, 'spam-killer', __NAMESPACE__ . '\\quarantine_page');
-    add_submenu_page('spam-killer', 'Log', 'Log', CAP, 'spam-killer-log', __NAMESPACE__ . '\\log_page');
+    $log = add_submenu_page('spam-killer', 'Log', 'Log', CAP, 'spam-killer-log', __NAMESPACE__ . '\\log_page');
+    add_action('load-' . $log, __NAMESPACE__ . '\\log_screen');
     add_submenu_page('spam-killer', 'Forms', 'Forms', CAP, 'spam-killer-forms', __NAMESPACE__ . '\\forms_page');
     add_submenu_page('spam-killer', 'Rules', 'Rules', CAP, 'spam-killer-rules', __NAMESPACE__ . '\\rules_page');
     add_submenu_page('spam-killer', 'Settings', 'Settings', CAP, 'spam-killer-settings', __NAMESPACE__ . '\\settings_page');
@@ -164,6 +165,18 @@ function quarantine_page() {
 
 /* ---------- Log ---------- */
 
+/** Registers the log's columns with Screen Options so each user can show or hide them. */
+function log_screen() {
+    if (!empty($_GET['item'])) {
+        return;
+    }
+    require_once __DIR__ . '/list-table.php';
+    new Quarantine_Table('', 'spam-killer-log'); // Its constructor hooks the columns into Screen Options.
+    add_filter('default_hidden_columns', function ($hidden, $screen) {
+        return $screen->id === get_current_screen()->id ? array_merge($hidden, array('ip', 'page')) : $hidden;
+    }, 10, 2);
+}
+
 function log_page() {
     if (!current_user_can(CAP)) {
         return;
@@ -255,6 +268,10 @@ function item_page($id, $back = 'spam-killer') {
         printf('<span class="sk-released">Released %s</span> ', esc_html(get_date_from_gmt($item['released_at'], 'Y-m-d H:i')));
     }
     printf('<a class="button" href="%s">Create rule from this</a> ', esc_url(page_url('spam-killer-rules', array('edit' => 0, 'from' => $id))));
+    $form = find_form(form_key($item['source'], $item['form_id']));
+    if ($form) {
+        printf('<a class="button" href="%s">Edit form</a> ', esc_url($form['edit_url']));
+    }
     echo '<button class="button" name="op" value="delete">Delete</button></form></div>';
 }
 

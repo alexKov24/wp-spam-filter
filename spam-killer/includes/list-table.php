@@ -27,7 +27,11 @@ class Quarantine_Table extends \WP_List_Table {
             $columns['outcome'] = 'Outcome';
             $columns['mail'] = 'Email';
         }
-        return $columns + array('reasons' => 'Why held', 'form' => 'Form', 'created_at' => 'Received');
+        $columns += array('reasons' => 'Why held', 'form' => 'Form', 'created_at' => 'Received');
+        if ($this->page === 'spam-killer-log') {
+            $columns += array('ip' => 'IP', 'page' => 'Page');
+        }
+        return $columns;
     }
 
     protected function get_bulk_actions() {
@@ -57,7 +61,7 @@ class Quarantine_Table extends \WP_List_Table {
         $page = $this->get_pagenum();
         $total = count_items($this->status, $this->filters);
         $this->items = query_items($this->status, $this->filters, $per_page, ($page - 1) * $per_page);
-        $this->_column_headers = array($this->get_columns(), array(), array());
+        $this->_column_headers = array($this->get_columns(), get_hidden_columns($this->screen), array(), 'submission');
         $this->set_pagination_args(array('total_items' => $total, 'per_page' => $per_page));
     }
 
@@ -94,6 +98,18 @@ class Quarantine_Table extends \WP_List_Table {
     protected function column_form($item) {
         $source = $item['source'] === 'cf7' ? 'CF7' : 'Elementor';
         return esc_html(($item['form_title'] !== '' ? $item['form_title'] : '#' . $item['form_id']) . ' (' . $source . ')');
+    }
+
+    protected function column_ip($item) {
+        return esc_html($item['ip']);
+    }
+
+    protected function column_page($item) {
+        if ($item['page_url'] === '') {
+            return '';
+        }
+        $path = wp_parse_url($item['page_url'], PHP_URL_PATH) ?: $item['page_url'];
+        return sprintf('<a href="%s" target="_blank" rel="noopener">%s</a>', esc_url($item['page_url']), esc_html(urldecode($path)));
     }
 
     protected function column_created_at($item) {
