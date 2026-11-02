@@ -254,6 +254,30 @@ check('rule from submission uses email and link domains', $draft['conditions'] =
     array('field' => 'link_domain', 'operator' => 'equals', 'value' => 'backlinks.example'),
 ) && !is_wp_error(validate_rule($draft)));
 
+// Privacy export / erase.
+$wpdb->query('DELETE FROM ' . table('submissions'));
+$person = function ($email, $msg) { return make_submission('cf7', 'p', 'Privacy form', array(array('id' => 'e', 'label' => 'Email', 'type' => 'email', 'value' => $email), array('id' => 'm', 'label' => 'Message', 'type' => 'textarea', 'value' => $msg))); };
+SpamKiller\log_submission($person('Noa@Example.com', 'first'), array());
+SpamKiller\log_submission($person('noa@example.com', 'second'), array(array('module' => 'rules', 'reason' => 'x')));
+SpamKiller\log_submission($person('other@example.com', 'mentions noa@example.com in text only'), array());
+$export = SpamKiller\privacy_export('noa@example.com', 1);
+check('privacy export finds the person\'s submissions only', count($export['data']) === 2 && $export['done'] === true);
+check('privacy export includes field values', in_array(array('name' => 'Message', 'value' => 'first'), $export['data'][0]['data'], true));
+$erase = SpamKiller\privacy_erase('noa@example.com', 1);
+check('privacy erase removes them', $erase['items_removed'] === true && SpamKiller\count_items('') === 1);
+
+// Daily digest.
+$sent = array();
+add_filter('pre_wp_mail', function ($null, $atts) use (&$sent) { $sent[] = $atts; return true; }, 9, 2);
+$wpdb->query('DELETE FROM ' . table('submissions'));
+check('no digest on a quiet day', SpamKiller\send_digest() === false && !$sent);
+SpamKiller\log_submission($person('bot@spam.example', 'Buy backlinks'), array(array('module' => 'rules', 'reason' => 'Matched rule: SEO')));
+check('digest lists held submissions', SpamKiller\send_digest() === true && strpos($sent[0]['body'] ?? $sent[0]['message'], 'Matched rule: SEO') !== false && strpos($sent[0]['subject'], '1 form submission') !== false);
+update_option('spam_killer_settings', array('digest' => false));
+check('digest can be turned off', SpamKiller\send_digest() === false);
+update_option('spam_killer_settings', array());
+check('digest is scheduled', (bool) wp_next_scheduled('spam_killer_digest'));
+
 // Visitor response modes.
 $spam_fields = array('email' => array('id' => 'email', 'type' => 'email', 'title' => 'Email', 'value' => 'y@mailinator.com', 'raw_value' => 'y@mailinator.com'));
 update_option('spam_killer_settings', SpamKiller\sanitize_settings(array('response' => 'review', 'review_message' => 'נבדק, נחזור אליך', 'modules' => array('disposable_email' => 1))));

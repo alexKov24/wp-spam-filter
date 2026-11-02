@@ -312,6 +312,12 @@ function rules_page() {
     }
     echo '<p class="description">A submission that matches any enabled rule goes to quarantine.</p>';
     $rules = get_rules();
+    $missing = array_diff(array_column(default_rules(), 'name'), array_column($rules, 'name'));
+    if ($missing) {
+        printf('<form method="post" action="%s" class="sk-defaults">', esc_url(admin_url('admin-post.php')));
+        wp_nonce_field('spam_killer_rule');
+        printf('<input type="hidden" name="action" value="spam_killer_rule"><input type="hidden" name="op" value="defaults"><button class="button">Add default rules</button> <span class="description">%s</span></form>', esc_html(implode(', ', $missing)));
+    }
     if (!$rules) {
         echo '<p>No rules yet. Example: <em>Message contains “1.3426 BTC”</em>, or <em>Link domain equals strictlydigital.net</em>.</p></div>';
         return;
@@ -426,6 +432,15 @@ function handle_rule_action() {
             delete_rule($id);
             $notice = 'rule_deleted';
             break;
+        case 'defaults':
+            $names = array_column(get_rules(), 'name');
+            foreach (default_rules() as $rule) {
+                if (!in_array($rule['name'], $names, true)) {
+                    save_rule($rule);
+                }
+            }
+            $notice = 'rule_saved';
+            break;
         default:
             $notice = '';
     }
@@ -514,6 +529,7 @@ function settings_page() {
         echo '</td></tr>';
     }
     echo '</tbody></table><h2>Submissions</h2><table class="form-table"><tbody>';
+    printf('<tr><th>Daily digest</th><td><label><input type="checkbox" name="spam_killer_settings[digest]" value="1"%s> Email %s a list of held submissions once a day</label><p class="description">Sent at about 08:00, only on days something was held, so you never miss a real enquiry.</p></td></tr>', checked($s['digest'], true, false), esc_html(get_option('admin_email')));
     echo '<tr><th>Visitor sees</th><td><fieldset>';
     foreach (responses() as $key => $label) {
         printf('<label><input type="radio" name="spam_killer_settings[response]" value="%s"%s> %s</label><br>', esc_attr($key), checked($s['response'], $key, false), esc_html($label));

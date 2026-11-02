@@ -14,7 +14,7 @@ namespace SpamKiller;
 defined('ABSPATH') || exit;
 
 const VERSION = '0.1.0';
-const SCHEMA = '3';
+const SCHEMA = '4';
 const FILE = __FILE__;
 
 require_once __DIR__ . '/includes/settings.php';
@@ -27,11 +27,13 @@ require_once __DIR__ . '/includes/cf7.php';
 require_once __DIR__ . '/includes/elementor.php';
 require_once __DIR__ . '/includes/honeypot.php';
 require_once __DIR__ . '/includes/forms.php';
+require_once __DIR__ . '/includes/extras.php';
 require_once __DIR__ . '/includes/admin.php';
 
 register_activation_hook(__FILE__, __NAMESPACE__ . '\\install');
 register_deactivation_hook(__FILE__, function () {
     wp_clear_scheduled_hook('spam_killer_expire');
+    wp_clear_scheduled_hook('spam_killer_digest');
 });
 
 add_action('plugins_loaded', function () {
@@ -81,6 +83,11 @@ function install() {
 
     if (!wp_next_scheduled('spam_killer_expire')) {
         wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'spam_killer_expire');
+    }
+    if (!wp_next_scheduled('spam_killer_digest')) {
+        // First digest tomorrow at 08:00 site time.
+        $next = new \DateTime('tomorrow 08:00', wp_timezone());
+        wp_schedule_event($next->getTimestamp(), 'daily', 'spam_killer_digest');
     }
     if (!get_option('spam_killer_seeded')) {
         foreach (default_rules() as $rule) {

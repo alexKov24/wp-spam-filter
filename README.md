@@ -33,6 +33,8 @@ Add-ons register modules through the `spam_killer_modules` filter. Modules marke
 
 **Log** (Spam Killer → Log): every submission with outcome and notification email status (sent / failed with error / none). Filter by form, search, CSV export (UTF-8 BOM, formula-safe). "Email it again" for passed submissions; "Create rule from this" prefills sender email and link domains.
 
+**Extras**: WordPress privacy export/erase (Tools → Export/Erase Personal Data, matched by email), daily digest email of held submissions (~08:00, only when something was held; can be turned off), dashboard widget (7-day counts, failed emails, recently held), "Add default rules" to restore deleted defaults, Settings/Log links on the Plugins screen.
+
 **Quarantine inbox** (Spam Killer → Quarantine): view values and reasons, "Not spam" (marks legitimate and emails the submission to the site admin with Reply-To set), delete, bulk actions. Log and quarantine entries are deleted after N days (Settings → Keep submissions for, default 30).
 
 ## Integration points
