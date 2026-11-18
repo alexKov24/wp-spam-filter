@@ -9,7 +9,7 @@
 <p>A free WordPress anti-spam plugin for Contact Form 7 and Elementor Pro forms: no CAPTCHA, no cloud service, a quarantine you can review.</p>
 
 <p>
-  <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-blue">
+  <img alt="Version 0.1.1" src="https://img.shields.io/badge/version-0.1.1-blue">
   <img alt="WordPress 6.0 or newer" src="https://img.shields.io/badge/WordPress-6.0%2B-21759b?logo=wordpress">
   <img alt="PHP 7.4 or newer" src="https://img.shields.io/badge/PHP-7.4%2B-777bb4?logo=php">
   <img alt="License GPL-2.0-or-later" src="https://img.shields.io/badge/license-GPL--2.0--or--later-green">
@@ -53,7 +53,7 @@ Your contact form sends you SEO pitches, crypto scams and bot junk, and the CAPT
   </tr>
 </table>
 
-> Status: 0.1.0, in development. Not on WordPress.org yet. The Elementor Pro adapter is tested with stand-in objects only, not against real Elementor Pro.
+> Status: 0.1.1, in development. Not on WordPress.org yet. The Elementor Pro adapter is tested with stand-in objects only, not against real Elementor Pro.
 
 ## Install
 
