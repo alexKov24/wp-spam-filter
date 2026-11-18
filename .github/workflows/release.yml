@@ -1,0 +1,25 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check plugin version matches tag
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          grep -q "^ \* Version: $v$" spam-killer/spam-killer.php || { echo "Plugin header Version is not $v"; exit 1; }
+          grep -q "^const VERSION = '$v';" spam-killer/spam-killer.php || { echo "VERSION const is not $v"; exit 1; }
+      - name: Build zip
+        run: zip -r spam-killer.zip spam-killer -x '*.DS_Store'
+      - name: Create release
+        run: gh release create "$GITHUB_REF_NAME" spam-killer.zip --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

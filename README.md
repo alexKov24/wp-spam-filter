@@ -59,9 +59,13 @@ Your contact form sends you SEO pitches, crypto scams and bot junk, and the CAPT
 
 **Requires** WordPress 6.0+, PHP 7.4+, and Contact Form 7 and/or Elementor Pro.
 
-1. Download the repo ([zip](https://github.com/alexKov24/wp-spam-filter/archive/refs/heads/main.zip)) or clone it.
-2. Copy the `spam-killer/` folder into `wp-content/plugins/`.
-3. Activate **Spam Killer** in **Plugins**.
+1. Download `spam-killer.zip` from the [latest release](https://github.com/alexKov24/wp-spam-filter/releases/latest).
+2. In **Plugins › Add New › Upload Plugin**, upload the zip.
+3. Activate **Spam Killer**.
+
+New releases show up in **Plugins** and **Dashboard › Updates** like any other plugin update.
+
+Or from source:
 
 ```sh
 git clone https://github.com/alexKov24/wp-spam-filter.git
@@ -149,7 +153,7 @@ Planned as a paid add-on.
 
 - `spam-killer/`: the plugin.
 - `tests/`: engine tests and `mail-capture.php`, a test-only mu-plugin that logs mail to `wp-content/mail.log`.
-- `legacy/`: Elementor spam filter v2, the site-specific predecessor.
+- `.github/workflows/release.yml`: builds `spam-killer.zip` and publishes a GitHub release on a `v*` tag.
 
 ## Contributing
 
@@ -157,6 +161,12 @@ Issues and pull requests are welcome. Run the engine tests inside a WordPress in
 
 ```sh
 wp eval-file tests/engine-test.php
+```
+
+To release, bump `Version:` and `VERSION` in `spam-killer/spam-killer.php`, merge, then tag:
+
+```sh
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 ## License

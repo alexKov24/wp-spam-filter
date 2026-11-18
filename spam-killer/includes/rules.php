@@ -1,7 +1,7 @@
 <?php
 /**
  * Keyword/domain rules: Field → condition → value, combined with ALL or ANY.
- * Ported from the earlier filter (legacy/), minus site-specific starter rules.
+ * Ported from an earlier site-specific filter, minus its starter rules.
  */
 
 namespace SpamKiller;
