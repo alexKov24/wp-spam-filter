@@ -30,7 +30,9 @@ function client_ip() {
     if ($source === 'cloudflare') {
         $ip = (string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '');
     } elseif ($source === 'forwarded') {
-        $ip = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''))[0]);
+        // The proxy appends the address it saw; earlier entries are whatever the client sent.
+        $hops = explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''));
+        $ip = trim(end($hops));
     }
     if (!filter_var($ip, FILTER_VALIDATE_IP)) {
         $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');

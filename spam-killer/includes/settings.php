@@ -45,7 +45,7 @@ function ip_sources() {
     return array(
         'remote' => 'Direct connection (REMOTE_ADDR) — default',
         'cloudflare' => 'Cloudflare (CF-Connecting-IP header)',
-        'forwarded' => 'Other proxy / load balancer (first X-Forwarded-For address)',
+        'forwarded' => 'Other proxy / load balancer (last X-Forwarded-For address)',
     );
 }
 
@@ -65,8 +65,12 @@ function settings() {
     return $settings;
 }
 
-/** Textarea (one domain per line, or commas) → clean unique list. */
+/**
+ * Textarea (one domain per line, or commas) → clean unique list.
+ * Also takes an already-clean list: WordPress sanitizes a new option twice.
+ */
 function domain_list($text) {
+    $text = is_array($text) ? implode("\n", $text) : $text;
     $domains = array();
     foreach (preg_split('/[\s,]+/', strtolower((string) $text)) as $domain) {
         $domain = preg_replace('/^(?:.*@|www\.)/', '', trim($domain, " .\t"));
