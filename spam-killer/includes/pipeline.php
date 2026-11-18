@@ -38,6 +38,7 @@ function inspect(array $submission) {
 /**
  * Inspects and logs a submission; a match is quarantined.
  * Returns the quarantine id, or 0 if the submission is clean.
+ * A held submission whose log write failed returns -1, so it is still held.
  */
 function screen(array $submission) {
     $reasons = inspect($submission);
@@ -47,7 +48,7 @@ function screen(array $submission) {
         return 0;
     }
     do_action('spam_killer_quarantined', $id, $submission, $reasons);
-    return $id;
+    return $id ?: -1;
 }
 
 /** Keeps the last 20 module errors for the Settings page. */

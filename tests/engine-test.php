@@ -118,6 +118,17 @@ $wpdb->update(table('submissions'), array('created_at' => gmdate('Y-m-d H:i:s', 
 $fresh = screen($s);
 expire();
 check('expiry deletes items older than 30 days only', get_item($old) === null && get_item($fresh) !== null);
+$bad = $s;
+$bad['page_url'] = "https://x.test/\xFF";
+$bad['form_title'] = str_repeat('ש', 200);
+$held = screen($bad);
+check('held submission stays held even with invalid UTF-8 and a long Hebrew title', $held !== 0);
+check('invalid UTF-8 page URL is still logged', $held > 0 && get_item($held) !== null);
+$wpdb->suppress_errors(true);
+add_filter('query', $break = function ($q) { return strpos($q, 'INSERT INTO `' . table('submissions')) === 0 ? 'SELECT broken FROM nowhere' : $q; });
+check('held submission stays held when the log write fails', screen($s) !== 0);
+remove_filter('query', $break);
+$wpdb->suppress_errors(false);
 
 // Elementor adapter, with stand-ins for Elementor's record and handler.
 class Fake_Record {
@@ -165,6 +176,8 @@ check('honeypot, time trap and JS check off add nothing', apply_filters('wpcf7_f
 update_option('spam_killer_settings', array());
 
 // Editable disposable list.
+$twice = SpamKiller\sanitize_settings(SpamKiller\sanitize_settings(array('disposable_block' => 'spammy.example', 'disposable_allow' => 'mailinator.com')));
+check('domain lists survive a second sanitize pass (first save)', $twice['disposable_block'] === array('spammy.example') && $twice['disposable_allow'] === array('mailinator.com'));
 check('domain list parsing', SpamKiller\domain_list("Foo.com, bar@baz.org\nwww.qux.net\nnot a domain\nfoo.com") === array('foo.com', 'baz.org', 'qux.net'));
 update_option('spam_killer_settings', SpamKiller\sanitize_settings(array('modules' => array('disposable_email' => 1), 'disposable_block' => 'spammy.example', 'disposable_allow' => 'mailinator.com')));
 check('extra blocked domain is caught', is_disposable_email('a@mail.spammy.example'));
@@ -182,6 +195,8 @@ $hit = function ($text) use ($defaults) {
 };
 check('default rules catch SEO pitch', $hit('We can get you to the FIRST PAGE of Google with quality backlinks'));
 check('default rules catch crypto bait', $hit('Withdraw your Bitcoin now'));
+check('default rules ignore "specialist" and "socialist"', !$hit('Looking for a specialist, and my socialist uncle says hi'));
+check('default rules catch cialis as a word', $hit('Buy cialis online today'));
 check('default rules ignore a normal enquiry', !$hit('Hi, I live in Essex and want to book a lesson for my kids next week.'));
 
 // Per-form module overrides.
@@ -242,6 +257,10 @@ check('Cloudflare header used when chosen', SpamKiller\client_ip() === '192.0.2.
 $_SERVER['HTTP_CF_CONNECTING_IP'] = 'not-an-ip';
 check('invalid header falls back to REMOTE_ADDR', SpamKiller\client_ip() === '203.0.113.5');
 unset($_SERVER['HTTP_CF_CONNECTING_IP']);
+update_option('spam_killer_settings', array('ip_source' => 'forwarded'));
+$_SERVER['HTTP_X_FORWARDED_FOR'] = '1.2.3.4, 192.0.2.77';
+check('X-Forwarded-For uses the address the proxy added (rightmost)', SpamKiller\client_ip() === '192.0.2.77');
+unset($_SERVER['HTTP_X_FORWARDED_FOR']);
 update_option('spam_killer_settings', array());
 
 // Module errors are recorded.

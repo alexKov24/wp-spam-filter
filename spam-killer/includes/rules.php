@@ -156,7 +156,7 @@ function default_rules() {
             'boost your ranking', 'monthly seo', 'explainer video', 'lead generation services',
         )),
         $any('Banned words: pharma & adult', array(
-            'viagra', 'cialis', 'levitra', 'tramadol', 'xanax', 'online pharmacy',
+            'viagra', 'buy cialis', 'cialis online', 'generic cialis', 'levitra', 'tramadol', 'xanax', 'online pharmacy',
             'porn', 'escort service', 'adult dating', 'hot singles', 'onlyfans',
         )),
         $any('Banned words: crypto & gambling', array(

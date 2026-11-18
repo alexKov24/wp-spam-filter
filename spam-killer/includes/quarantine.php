@@ -6,18 +6,23 @@ defined('ABSPATH') || exit;
 
 add_action('spam_killer_expire', __NAMESPACE__ . '\\expire');
 
+/** Valid UTF-8 cut to $max characters, so the database never rejects the row. */
+function clean_text($text, $max) {
+    return mb_substr(wp_check_invalid_utf8((string) $text, true), 0, $max);
+}
+
 /** Stores every submission: 'passed' when clean, 'quarantined' when held. */
 function log_submission(array $submission, array $reasons) {
     global $wpdb;
     $wpdb->insert(table('submissions'), array(
         'source' => $submission['source'],
-        'form_id' => substr($submission['form_id'], 0, 80),
-        'form_title' => substr($submission['form_title'], 0, 255),
+        'form_id' => clean_text($submission['form_id'], 80),
+        'form_title' => clean_text($submission['form_title'], 255),
         // Unescaped so log search (LIKE) finds non-Latin text such as Hebrew.
         'fields' => wp_json_encode($submission['fields'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         'reasons' => wp_json_encode($reasons, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         'ip' => $submission['ip'],
-        'page_url' => substr($submission['page_url'], 0, 2048),
+        'page_url' => clean_text($submission['page_url'], 2048),
         'status' => $reasons ? 'quarantined' : 'passed',
         'created_at' => gmdate('Y-m-d H:i:s'),
     ));
