@@ -7,6 +7,7 @@
  * Requires PHP: 7.4
  * License: GPL-2.0-or-later
  * Text Domain: spam-killer
+ * Update URI: https://github.com/alexKov24/wp-spam-filter
  */
 
 namespace SpamKiller;
@@ -30,6 +31,7 @@ require_once __DIR__ . '/includes/forms.php';
 require_once __DIR__ . '/includes/comments.php';
 require_once __DIR__ . '/includes/extras.php';
 require_once __DIR__ . '/includes/admin.php';
+require_once __DIR__ . '/includes/updater.php';
 
 register_activation_hook(__FILE__, __NAMESPACE__ . '\\install');
 register_deactivation_hook(__FILE__, function () {
