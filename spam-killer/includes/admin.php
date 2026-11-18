@@ -34,7 +34,8 @@ add_action('admin_enqueue_scripts', function () {
 function admin_menu() {
     $count = count_items();
     $badge = $count ? ' <span class="awaiting-mod">' . number_format_i18n($count) . '</span>' : '';
-    add_menu_page('Spam Killer', 'Spam Killer' . $badge, CAP, 'spam-killer', __NAMESPACE__ . '\\quarantine_page', 'dashicons-shield', 80);
+    $icon = 'data:image/svg+xml;base64,' . base64_encode(file_get_contents(dirname(FILE) . '/assets/menu-icon.svg'));
+    add_menu_page('Spam Killer', 'Spam Killer' . $badge, CAP, 'spam-killer', __NAMESPACE__ . '\\quarantine_page', $icon, 80);
     add_submenu_page('spam-killer', 'Quarantine', 'Quarantine', CAP, 'spam-killer', __NAMESPACE__ . '\\quarantine_page');
     $log = add_submenu_page('spam-killer', 'Log', 'Log', CAP, 'spam-killer-log', __NAMESPACE__ . '\\log_page');
     add_action('load-' . $log, __NAMESPACE__ . '\\log_screen');

@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/logo.svg" width="96" height="96" alt="Spam Killer logo: a blue shield with an envelope">
+
 <h1>Spam Killer</h1>
 
 <p><strong>Spam never reaches your inbox. Real leads never get lost.</strong></p>
