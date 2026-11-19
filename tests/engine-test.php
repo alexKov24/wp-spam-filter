@@ -330,8 +330,7 @@ $_POST['sk_js'] = SpamKiller\js_token();
 check('JS field filled by the script passes', $mods(make_submission('cf7', 'js2', 'J', $clean['fields'])) === array());
 unset($_POST['sk_js']);
 check('no JS field (cached page) passes', $mods(make_submission('cf7', 'js3', 'J', $clean['fields'])) === array());
-ob_start(); SpamKiller\js_script(); $script = ob_get_clean();
-check('page script carries the token', strpos($script, SpamKiller\js_token()) !== false);
+check('form HTML carries the script and token (survives cached form HTML)', strpos(apply_filters('wpcf7_form_elements', ''), SpamKiller\js_token()) !== false);
 
 // Bot user agents.
 $ua = $_SERVER['HTTP_USER_AGENT'];
