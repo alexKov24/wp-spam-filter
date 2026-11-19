@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Spam Killer
  * Description: Quarantines suspicious Contact Form 7 and Elementor Pro form submissions before they send email.
- * Version: 0.1.1
+ * Version: 0.1.2
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * License: GPL-2.0-or-later
@@ -14,7 +14,7 @@ namespace SpamKiller;
 
 defined('ABSPATH') || exit;
 
-const VERSION = '0.1.1';
+const VERSION = '0.1.2';
 const SCHEMA = '4';
 const FILE = __FILE__;
 
